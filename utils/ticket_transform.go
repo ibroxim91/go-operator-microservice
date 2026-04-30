@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func TransformSamoPriceToTicket(price models.Price, departure, operator, country string, destinationID, departureID int, fromCache bool) *models.Ticket {
+func TransformSamoPriceToTicket(price models.Price, departure, operator, country, countrImageUrl string, destinationID, departureID int, fromCache bool) *models.Ticket {
     // USD kursini olish (mock)
     currentUsdCourse := 12000 // misol uchun
     priceValue := 0.0
@@ -64,7 +64,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
                 Name: country, // mapping qo‘shish mumkin
             },
         },
-        TicketImages:   "",
+        TicketImages:   countrImageUrl,
         TicketAmenities: []string{},
         Badge:          []string{},
         VisaRequired:   false,

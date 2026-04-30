@@ -59,9 +59,9 @@ func handleTestJob(job models.Request, results chan<- models.Result) {
     formatPrices := []*models.Ticket{}
     for _, price := range parsed.SearchTour_PRICES.Prices {
         ticket := utils.TransformSamoPriceToTicket(
-            price, job.Departure,
-            job.Operator, job.DestCountryName, job.DestinationID,
-            job.DepartureID, true,
+            price,
+			job.Departure, job.Operator, job.DestCountryName, job.DestImageUrl,
+			job.DestinationID,job.DepartureID, true,
         )
         formatPrices = append(formatPrices, ticket)
     }
@@ -102,7 +102,7 @@ func handleProdJob(job models.Request, results chan<- models.Result) {
     for _, price := range parsed.SearchTour_PRICES.Prices {
         ticket := utils.TransformSamoPriceToTicket(
             price, job.Departure,
-            job.Operator, job.DestCountryName, job.DestinationID,
+            job.Operator, job.DestCountryName, job.DestImageUrl, job.DestinationID,
             job.DepartureID, false,
         )
         formatPrices = append(formatPrices, ticket)
