@@ -1,0 +1,19 @@
+version: "3.8"
+
+networks:
+  backend_simple_travel:
+    external: true
+
+services:
+  echo:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: echo-service
+    networks:
+      - backend_simple_travel
+    env_file:
+      - ./.env  
+    ports:
+      - "8088:8088"
+    restart: always
