@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-func TransformSamoPriceToTicket(price models.Price, departure, operator, country, countrImageUrl string, destinationID, departureID int, fromCache bool) *models.Ticket {
-    // USD kursini olish (mock)
-    currentUsdCourse := 12000 // misol uchun
+func TransformSamoPriceToTicket(price models.Price, departure, operator, country, countrImageUrl string,
+    currentUsdCourse float64, destinationID, departureID int, fromCache bool) *models.Ticket {
+
     priceValue := 0.0
     if val, err := strconv.ParseFloat(price.Price, 64); err == nil {
         priceValue = val
@@ -31,16 +31,18 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
         end := strings.Index(hotelName, ")")
         hotelName = hotelName[start:end]
     }
-	hotel := GetHotel(&price, hotelName)
+    hotel := GetHotel(&price, hotelName)
+
     slug := strings.ToLower(strings.ReplaceAll(price.Tour, " ", "-"))
     slug = strings.ReplaceAll(slug, "/", "-")
     slug += fmt.Sprintf("-%d", price.StateKey)
 
     ticket := &models.Ticket{
         TourOperatorID: price.ID,
-        ID:             price.TourKey, // yoki hash
+        ID:             price.TourKey,
         Title:          price.Tour,
         Slug:           slug,
+        Bron:           price.Bron,
         Nights:         price.Nights,
         Price:          priceStr,
         PriceFull:      priceValueUsz,
@@ -61,7 +63,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
             Name: price.Town,
             Country: models.CountryInfo{
                 ID:   price.StateKey,
-                Name: country, // mapping qo‘shish mumkin
+                Name: country,
             },
         },
         TicketImages:   countrImageUrl,
@@ -70,7 +72,31 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
         VisaRequired:   false,
         FromCache:      fromCache,
         IsLiked:        false,
-        TicketHotel: hotel,
+        TicketHotel:    hotel,
+
+        // Qo‘shimcha fieldlar
+        DepartureDate: price.CheckIn,
+        TravelTime:    price.CheckOut,
+        Languages:     "Русский, Английский",
+        MinPerson:     1,
+        MaxPerson:     price.Adult + price.Child,
+        ImageBanner:   "",
+        HotelInfo:     hotelName,
+        HotelMeals:    price.Meal,
+        AllowComment:  true,
+        TicketIncludedServices: []models.IncludedService{
+            {Image: "", Title: "Трансфер", Desc: "Трансфер из аэропорта в отель и обратно"},
+        },
+        TicketItinerary: []string{},
+        TicketHotelMeals: []models.HotelMeal{
+            {Image: "", Name: strings.ToUpper(price.Meal), Desc: "Тип питания"},
+        },
+        TravelAgencyID: "samo_api",
+        TicketComments: []string{},
+        Tariff:         []models.Tariff{{Name: "Стандарт"}},
+        Transports:     []models.Transport{}, // list bo‘lib qoladi
+        ExtraService:   []string{},
+        PaidExtraService: []string{},
     }
 
     return ticket

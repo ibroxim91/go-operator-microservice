@@ -16,10 +16,11 @@ type Price struct {
     Price    string `json:"price"`
     StateKey int    `json:"stateKey"`
     TourKey int    `json:"tourKey"`
-    TownFromKey int    `json:"townFromKey"`
+    TownFromKey int  `json:"townFromKey"`
     TownKey int    `json:"townKey"`
     HotelKey int    `json:"hotelKey"`
     Note     string `json:"note"`
+    Bron     bool `  json:"bron"`
 }
 
 type Page struct {

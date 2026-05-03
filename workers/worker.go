@@ -1,17 +1,18 @@
 package workers
 
 import (
-    "bytes"
-    "encoding/json"
-    "fmt"
-    "go-operator-service/models"
-    "go-operator-service/utils"
-    "io/ioutil"
-    "net/http"
-    "os"
-    "sync"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"go-operator-service/models"
+	"go-operator-service/utils"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"sync"
 
-    "github.com/joho/godotenv"
+	"github.com/joho/godotenv"
 )
 
 // init funksiyada .env faylni yuklab olamiz
@@ -19,30 +20,50 @@ func init() {
     _ = godotenv.Load(".env")
 }
 
-func worker(jobs <-chan models.Request, results chan<- models.Result, wg *sync.WaitGroup) {
+
+
+func worker(ctx context.Context, jobs <-chan models.Request, results chan<- models.Result, wg *sync.WaitGroup) {
     defer wg.Done()
-    for job := range jobs {
-        if job.Istest {
-            handleTestJob(job, results)
-        } else {
-            handleProdJob(job, results)
+    for {
+        select {
+        case <-ctx.Done():
+            // Agar job ishlayapti bo‘lsa, uni tugatib keyin return qilamiz
+            // Yangi job olmaymiz
+            return
+        case job, ok := <-jobs:
+            if !ok {
+                return
+            }
+            if job.Istest {
+                handleTestJob(ctx, job, results) // ctx beramiz
+            } else {
+                handleProdJob(ctx, job, results)
+            }
         }
     }
 }
 
 // Test rejimdagi so‘rovlarni alohida funksiya
-func handleTestJob(job models.Request, results chan<- models.Result) {
+func handleTestJob(ctx context.Context, job models.Request, results chan<- models.Result) {
     payload := map[string]string{"url": job.Url}
     bodyBytes, _ := json.Marshal(payload)
     testURL := os.Getenv("TEST_URL")
 
-   
-    resp, err := http.Post(testURL, "application/json", bytes.NewBuffer(bodyBytes))
+    req, err := http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
+    if err != nil {
+        results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
+        return
+    }
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := http.DefaultClient.Do(req)
     if err != nil {
         results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
         return
     }
     defer resp.Body.Close()
+
+
 
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
@@ -61,6 +82,7 @@ func handleTestJob(job models.Request, results chan<- models.Result) {
         ticket := utils.TransformSamoPriceToTicket(
             price,
 			job.Departure, job.Operator, job.DestCountryName, job.DestImageUrl,
+			job.CurrentUsdCourse,
 			job.DestinationID,job.DepartureID, true,
         )
         formatPrices = append(formatPrices, ticket)
@@ -78,8 +100,14 @@ func handleTestJob(job models.Request, results chan<- models.Result) {
 }
 
 // Production rejimdagi so‘rovlar
-func handleProdJob(job models.Request, results chan<- models.Result) {
-    resp, err := http.Get(job.Url)
+func handleProdJob(ctx context.Context, job models.Request, results chan<- models.Result) {
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
+    if err != nil {
+        results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
+        return
+    }
+
+    resp, err := http.DefaultClient.Do(req)
     if err != nil {
         results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
         return
@@ -102,7 +130,8 @@ func handleProdJob(job models.Request, results chan<- models.Result) {
     for _, price := range parsed.SearchTour_PRICES.Prices {
         ticket := utils.TransformSamoPriceToTicket(
             price, job.Departure,
-            job.Operator, job.DestCountryName, job.DestImageUrl, job.DestinationID,
+            job.Operator, job.DestCountryName, job.DestImageUrl, 
+			job.CurrentUsdCourse, job.DestinationID,
             job.DepartureID, false,
         )
         formatPrices = append(formatPrices, ticket)
