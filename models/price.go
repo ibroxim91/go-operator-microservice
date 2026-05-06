@@ -20,7 +20,7 @@ type Price struct {
     TownKey int    `json:"townKey"`
     HotelKey int    `json:"hotelKey"`
     Note     string `json:"note"`
-    Bron     bool `  json:"bron"`
+    Bron     BoolString `json:"bron"`
 }
 
 type Page struct {

@@ -142,3 +142,5 @@ func GetHotel(price *models.Price, hotelName string) []models.TicketHotel {
     }
     return []models.TicketHotel{ticketHotel}
 }
+
+

@@ -1,4 +1,22 @@
 package models
+type BoolString bool
+
+func (b *BoolString) UnmarshalJSON(data []byte) error {
+    s := string(data)
+    switch s {
+    case `"1"`, `1`:
+        *b = true
+    case `"0"`, `0`:
+        *b = false
+    case `true`:
+        *b = true
+    case `false`:
+        *b = false
+    default:
+        *b = false
+    }
+    return nil
+}
 
 type Ticket struct {
     TourOperatorID string         `json:"tour_operator_id"`
@@ -35,7 +53,7 @@ type Ticket struct {
     HotelInfo              string            `json:"hotel_info"`
     HotelMeals             string            `json:"hotel_meals"`
     AllowComment           bool              `json:"allow_comment"`
-    Bron                   bool              `json:"bron"`
+    Bron                   BoolString              `json:"bron"`
     TicketIncludedServices []IncludedService `json:"ticket_included_services"`
     TicketItinerary        []string          `json:"ticket_itinerary"`
     TicketHotelMeals       []HotelMeal       `json:"ticket_hotel_meals"`

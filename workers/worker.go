@@ -8,6 +8,7 @@ import (
 	"go-operator-service/models"
 	"go-operator-service/utils"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -51,6 +52,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 
     req, err := http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
     if err != nil {
+        log.Fatal(err)
         results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
         return
     }
@@ -58,6 +60,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 
     resp, err := http.DefaultClient.Do(req)
     if err != nil {
+        log.Fatal(err)
         results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
         return
     }
@@ -67,17 +70,20 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
+        log.Fatal(err)
         results <- models.Result{Error: fmt.Sprintf("Error reading body: %v", err)}
         return
     }
 
     var parsed models.SearchTourResponse
     if err := json.Unmarshal(body, &parsed); err != nil {
+        log.Fatal(err)
         results <- models.Result{Error: fmt.Sprintf("Error parsing JSON: %v", err)}
         return
     }
 
     formatPrices := []*models.Ticket{}
+    
     for _, price := range parsed.SearchTour_PRICES.Prices {
         ticket := utils.TransformSamoPriceToTicket(
             price,
