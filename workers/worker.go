@@ -52,7 +52,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 
     req, err := http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
     if err != nil {
-        log.Fatal(err)
+        log.Fatal("requst error  testURL", err)
         results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
         return
     }
@@ -60,7 +60,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 
     resp, err := http.DefaultClient.Do(req)
     if err != nil {
-        log.Fatal(err)
+        log.Fatal("N request ",err)
         results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
         return
     }
@@ -70,14 +70,14 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 
     body, err := ioutil.ReadAll(resp.Body)
     if err != nil {
-        log.Fatal(err)
+        log.Fatal("Error red body" ,err)
         results <- models.Result{Error: fmt.Sprintf("Error reading body: %v", err)}
         return
     }
 
     var parsed models.SearchTourResponse
     if err := json.Unmarshal(body, &parsed); err != nil {
-        log.Fatal(err)
+        log.Fatal("Errrr unmarshal json", err)
         results <- models.Result{Error: fmt.Sprintf("Error parsing JSON: %v", err)}
         return
     }
@@ -109,25 +109,29 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 func handleProdJob(ctx context.Context, job models.Request, results chan<- models.Result) {
     req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
     if err != nil {
-        results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
-        return
-    }
-
-    resp, err := http.DefaultClient.Do(req)
-    if err != nil {
-        results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
-        return
-    }
-    defer resp.Body.Close()
-
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
+         log.Fatal("Errrr NewRequestWithContext", err)
+         results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
+         return
+        }
+        
+        resp, err := http.DefaultClient.Do(req)
+        if err != nil {
+            results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
+            log.Fatal("Errrr DefaultClient", err)
+            return
+        }
+        defer resp.Body.Close()
+        
+        body, err := ioutil.ReadAll(resp.Body)
+        if err != nil {
+        log.Fatal("Errrr ReadAll", err)
         results <- models.Result{Error: fmt.Sprintf("Error reading body: %v", err)}
         return
     }
-
+    
     var parsed models.SearchTourResponse
     if err := json.Unmarshal(body, &parsed); err != nil {
+        log.Fatal("Errrr Unmarshal", err)
         results <- models.Result{Error: fmt.Sprintf("Error parsing JSON: %v", err)}
         return
     }
