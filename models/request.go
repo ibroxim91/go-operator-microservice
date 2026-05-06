@@ -11,4 +11,5 @@ type Request struct {
 	DestImageUrl string `json:"destination_image_url"`
 	CurrentUsdCourse float64 `json:"current_usd_course"`
 	Istest bool `json:"test"`
+	Page  int `json:"page"`
 }

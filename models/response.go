@@ -4,6 +4,7 @@ package models
 type ResultResponse struct {
     Prices       []*Ticket     `json:"prices"`
 	Total   int `json:"total"`
+    Page  int `json:"page"`
 }
 
 type Result struct {
