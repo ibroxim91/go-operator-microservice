@@ -36,8 +36,10 @@ func worker(ctx context.Context, jobs <-chan models.Request, results chan<- mode
                 return
             }
             if job.Istest {
+                log.Println("Work start  ", job.Istest)
                 handleTestJob(ctx, job, results) // ctx beramiz
             } else {
+                log.Println("Work start  ", job.Istest)
                 handleProdJob(ctx, job, results)
             }
         }
@@ -49,7 +51,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
     payload := map[string]string{"url": job.Url}
     bodyBytes, _ := json.Marshal(payload)
     testURL := os.Getenv("TEST_URL")
-
+    log.Println("Started Test Job")
     req, err := http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
     if err != nil {
         log.Fatal("requst error  testURL", err)
@@ -108,6 +110,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 // Production rejimdagi so‘rovlar
 func handleProdJob(ctx context.Context, job models.Request, results chan<- models.Result) {
     req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
+     log.Println("Started PROD Job")
     if err != nil {
          log.Fatal("Errrr NewRequestWithContext", err)
          results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
