@@ -9,138 +9,139 @@ import (
 )
 
 func TransformSamoPriceToTicket(price models.Price, departure, operator, country, countrImageUrl string,
-    currentUsdCourse float64, destinationID, departureID int, fromCache bool) *models.Ticket {
+	currentUsdCourse float64, destinationID, departureID int, fromCache bool) *models.Ticket {
 
-    priceValue := 0.0
-    if val, err := strconv.ParseFloat(price.Price, 64); err == nil {
-        priceValue = val
-    }
-    priceValueUsz := int(priceValue * float64(currentUsdCourse+200))
-    mln := float64(priceValueUsz) / 1_000_000
+	priceValue := 0.0
+	if val, err := strconv.ParseFloat(price.Price, 64); err == nil {
+		priceValue = val
+	}
+	priceValueUsz := int(priceValue * float64(currentUsdCourse+200))
+	mln := float64(priceValueUsz) / 1_000_000
 
-    var priceStr string
-    if math.Mod(mln, 1) == 0 {
-        priceStr = fmt.Sprintf("%d", int(mln))
-    } else {
-        priceStr = fmt.Sprintf("%.1f", mln)
-    }
+	var priceStr string
+	if math.Mod(mln, 1) == 0 {
+		priceStr = fmt.Sprintf("%d", int(mln))
+	} else {
+		priceStr = fmt.Sprintf("%.1f", mln)
+	}
 
-    hotelName := price.Hotel
-    if strings.Contains(hotelName, "(") && strings.Contains(hotelName, ")") {
-        start := strings.Index(hotelName, "(") + 1
-        end := strings.Index(hotelName, ")")
-        hotelName = hotelName[start:end]
-    }
-    hotel := GetHotel(&price, hotelName)
+	hotelName := price.Hotel
+	if strings.Contains(hotelName, "(") && strings.Contains(hotelName, ")") {
+		start := strings.Index(hotelName, "(") + 1
+		end := strings.Index(hotelName, ")")
+		hotelName = hotelName[start:end]
+	}
+	hotel := GetHotel(&price, hotelName)
 
-    slug := strings.ToLower(strings.ReplaceAll(price.Tour, " ", "-"))
-    slug = strings.ReplaceAll(slug, "/", "-")
-    slug += fmt.Sprintf("-%d", price.StateKey)
+	slug := strings.ToLower(strings.ReplaceAll(price.Tour, " ", "-"))
+	slug = strings.ReplaceAll(slug, "/", "-")
+	slug += fmt.Sprintf("-%d", price.StateKey)
 
-    ticket := &models.Ticket{
-        TourOperatorID: price.ID,
-        ID:             price.TourKey,
-        Title:          price.Tour,
-        Slug:           slug,
-        Bron:           price.Bron,
-        Nights:         price.Nights,
-        Price:          priceStr,
-        PriceFull:      priceValueUsz,
-        Operator:       operator,
-        DepartureID:    departureID,
-        DestinationID:  destinationID,
-        DepartureTime:  price.CheckIn,
-        Departure: models.DepartureInfo{
-            ID:      price.TownFromKey,
-            Name:    departure,
-            Country: "Uzbekistan",
-        },
-        PassengerCount: price.Adult + price.Child,
-        Rating:         4.5,
-        DurationDays:   price.Nights,
-        Destination: models.DestinationInfo{
-            ID:   price.TownKey,
-            Name: price.Town,
-            Country: models.CountryInfo{
-                ID:   price.StateKey,
-                Name: country,
-            },
-        },
-        TicketImages:   countrImageUrl,
-        TicketAmenities: []string{},
-        Badge:          []string{},
-        VisaRequired:   false,
-        FromCache:      fromCache,
-        IsLiked:        false,
-        TicketHotel:    hotel,
+	ticket := &models.Ticket{
+		TourOperatorID: price.ID,
+		ID:             price.TourKey,
+		Title:          price.Tour,
+		Slug:           slug,
+		Bron:           price.Bron,
+		Nights:         price.Nights,
+		Price:          priceStr,
+		PriceFull:      priceValueUsz,
+		RoomType:       price.Room,
+		Place:          price.Place,
+		FreightExternal: price.FreightExternal,
+		Operator:       operator,
+		DepartureID:    departureID,
+		DestinationID:  destinationID,
+		DepartureTime:  price.CheckIn,
+		Departure: models.DepartureInfo{
+			ID:      price.TownFromKey,
+			Name:    departure,
+			Country: "Uzbekistan",
+		},
+		PassengerCount: price.Adult + price.Child,
+		Rating:         4.5,
+		DurationDays:   price.Nights,
+		Destination: models.DestinationInfo{
+			ID:   price.TownKey,
+			Name: price.Town,
+			Country: models.CountryInfo{
+				ID:   price.StateKey,
+				Name: country,
+			},
+		},
+		TicketImages:    countrImageUrl,
+		TicketAmenities: []string{},
+		Badge:           []string{},
+		VisaRequired:    false,
+		FromCache:       fromCache,
+		IsLiked:         false,
+		TicketHotel:     hotel,
 
-        // Qo‘shimcha fieldlar
-        DepartureDate: price.CheckIn,
-        TravelTime:    price.CheckOut,
-        Languages:     "Русский, Английский",
-        MinPerson:     1,
-        MaxPerson:     price.Adult + price.Child,
-        ImageBanner:   "",
-        HotelInfo:     hotelName,
-        HotelMeals:    price.Meal,
-        AllowComment:  true,
-        TicketIncludedServices: []models.IncludedService{
-            {Image: "", Title: "Трансфер", Desc: "Трансфер из аэропорта в отель и обратно"},
-        },
-        TicketItinerary: []string{},
-        TicketHotelMeals: []models.HotelMeal{
-            {Image: "", Name: strings.ToUpper(price.Meal), Desc: "Тип питания"},
-        },
-        TravelAgencyID: "samo_api",
-        TicketComments: []string{},
-        Tariff:         []models.Tariff{{Name: "Стандарт"}},
-        Transports:     []models.Transport{}, // list bo‘lib qoladi
-        ExtraService:   []string{},
-        PaidExtraService: []string{},
-    }
+		// Qo‘shimcha fieldlar
+		DepartureDate: price.CheckIn,
+		TravelTime:    price.CheckOut,
+		Languages:     "Русский, Английский",
+		MinPerson:     1,
+		MaxPerson:     price.Adult + price.Child,
+		ImageBanner:   "",
+		HotelInfo:     hotelName,
+		HotelMeals:    price.Meal,
+		AllowComment:  true,
+		TicketIncludedServices: []models.IncludedService{
+			{Image: "", Title: "Трансфер", Desc: "Трансфер из аэропорта в отель и обратно"},
+		},
+		TicketItinerary: []string{},
+		TicketHotelMeals: []models.HotelMeal{
+			{Image: "", Name: strings.ToUpper(price.Meal), Desc: "Тип питания"},
+		},
+		TravelAgencyID:   "samo_api",
+		TicketComments:   []string{},
+		Tariff:           []models.Tariff{{Name: "Стандарт"}},
+		Transports:       []models.Transport{}, // list bo‘lib qoladi
+		ExtraService:     []string{},
+		PaidExtraService: []string{},
+	}
 
-    return ticket
+	return ticket
 }
 
 func GetHotel(price *models.Price, hotelName string) []models.TicketHotel {
-    // Default qiymat
-    var starRating interface{} = 3
-    hotelStarsExist := false
+	// Default qiymat
+	var starRating interface{} = 3
+	hotelStarsExist := false
 
-    if strings.HasPrefix(price.Star, "**") {
-        starCount := 0
-        for _, ch := range price.Star {
-            if ch != '*' {
-                break
-            }
-            starCount++
-        }
-        if starCount == len(price.Star) {
-            starRating = starCount
-            hotelStarsExist = true
-        }
-    }
+	if strings.HasPrefix(price.Star, "**") {
+		starCount := 0
+		for _, ch := range price.Star {
+			if ch != '*' {
+				break
+			}
+			starCount++
+		}
+		if starCount == len(price.Star) {
+			starRating = starCount
+			hotelStarsExist = true
+		}
+	}
 
-    starStr := strings.ReplaceAll(price.Star, "*", "")
-    starStr = strings.ReplaceAll(starStr, "HV-", "")
+	starStr := strings.ReplaceAll(price.Star, "*", "")
+	starStr = strings.ReplaceAll(starStr, "HV-", "")
 
-    if !hotelStarsExist {
-        if strings.HasPrefix(starStr, "Special") {
-            starRating = "Special Class"
-        } else {
-            if val, err := strconv.Atoi(starStr); err == nil {
-                starRating = val
-            }
-        }
-    }
+	if !hotelStarsExist {
+		if strings.HasPrefix(starStr, "Special") {
+			starRating = "Special Class"
+		} else {
+			if val, err := strconv.Atoi(starStr); err == nil {
+				starRating = val
+			}
+		}
+	}
 
-    ticketHotel := models.TicketHotel{
-        ID:       price.HotelKey,
-        Name:     hotelName,
-        MealPlan: strings.ToUpper(price.Meal),
-        Rating:   starRating,
-    }
-    return []models.TicketHotel{ticketHotel}
+	ticketHotel := models.TicketHotel{
+		ID:       price.HotelKey,
+		Name:     hotelName,
+		MealPlan: strings.ToUpper(price.Meal),
+		Rating:   starRating,
+	}
+	return []models.TicketHotel{ticketHotel}
 }
-
-

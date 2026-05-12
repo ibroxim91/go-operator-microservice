@@ -14,6 +14,9 @@ type Price struct {
     Meal     string `json:"meal"`
     Currency string `json:"currency"`
     Price    string `json:"price"`
+    Room     string `json:"room"`
+    Place     string `json:"htPlace"`
+    FreightExternal     string `json:"freightExternal"`
     StateKey int    `json:"stateKey"`
     TourKey int    `json:"tourKey"`
     TownFromKey int  `json:"townFromKey"`
