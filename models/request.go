@@ -7,6 +7,7 @@ type Request struct {
 	Departure string `json:"departure"`
 	DestinationID int `json:"destination_id"`
 	DepartureID int `json:"departure_id"`
+	CountryID int `json:"country_id"`
 	DestCountryName string `json:"destination_country_name"`
 	DestImageUrl string `json:"destination_image_url"`
 	CurrentUsdCourse float64 `json:"current_usd_course"`

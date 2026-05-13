@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go-operator-service/models"
 	"go-operator-service/utils"
+    "go-operator-service/services"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -23,7 +24,7 @@ func init() {
 
 
 
-func worker(ctx context.Context, jobs <-chan models.Request, results chan<- models.Result, wg *sync.WaitGroup) {
+func worker(ctx context.Context, jobs <-chan models.Request, results chan<- models.Result, wg *sync.WaitGroup, hotelService *services.HotelService) {
     defer wg.Done()
     for {
         select {
@@ -36,22 +37,20 @@ func worker(ctx context.Context, jobs <-chan models.Request, results chan<- mode
                 return
             }
             if job.Istest {
-                log.Println("Work start  ", job.Istest)
-                handleTestJob(ctx, job, results) // ctx beramiz
+                handleTestJob(ctx, job, results, hotelService) // ctx beramiz
             } else {
-                log.Println("Work start  ", job.Istest)
-                handleProdJob(ctx, job, results)
+                handleProdJob(ctx, job, results, hotelService)
             }
         }
     }
 }
 
 // Test rejimdagi so‘rovlarni alohida funksiya
-func handleTestJob(ctx context.Context, job models.Request, results chan<- models.Result) {
+func handleTestJob(ctx context.Context, job models.Request, results chan<- models.Result,  hotelService *services.HotelService) {
     payload := map[string]string{"url": job.Url}
     bodyBytes, _ := json.Marshal(payload)
     testURL := os.Getenv("TEST_URL")
-    log.Println("Started Test Job")
+    log.Println("Started Test Job For Operator: ",  job.Operator)
     req, err := http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
     if err != nil {
         log.Fatal("requst error  testURL", err)
@@ -91,7 +90,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
             price,
 			job.Departure, job.Operator, job.DestCountryName, job.DestImageUrl,
 			job.CurrentUsdCourse,
-			job.DestinationID,job.DepartureID, true,
+			job.DestinationID,job.DepartureID,  job.CountryID, hotelService, true,
         )
         formatPrices = append(formatPrices, ticket)
     }
@@ -108,9 +107,9 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 }
 
 // Production rejimdagi so‘rovlar
-func handleProdJob(ctx context.Context, job models.Request, results chan<- models.Result) {
+func handleProdJob(ctx context.Context, job models.Request, results chan<- models.Result,  hotelService *services.HotelService) {
     req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
-     log.Println("Started PROD Job")
+     log.Println("Started PROD Job For Operator: ",  job.Operator)
     if err != nil {
          log.Fatal("Errrr NewRequestWithContext", err)
          results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
@@ -145,7 +144,7 @@ func handleProdJob(ctx context.Context, job models.Request, results chan<- model
             price, job.Departure,
             job.Operator, job.DestCountryName, job.DestImageUrl, 
 			job.CurrentUsdCourse, job.DestinationID,
-            job.DepartureID, false,
+            job.DepartureID, job.CountryID,hotelService, false, 
         )
         formatPrices = append(formatPrices, ticket)
     }
