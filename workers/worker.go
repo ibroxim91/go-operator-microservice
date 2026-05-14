@@ -85,9 +85,9 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 		if price.FreightExternal == "Y" {
 			continue
 		}
-		// if price.Bron == false {
-		// 	continue
-		// }
+		if price.Bron == false {
+			continue
+		}
 		ticket := utils.TransformSamoPriceToTicket(
 			price,
 			job.Departure, job.Operator, job.DestCountryName, job.DestImageUrl,
@@ -145,9 +145,9 @@ func handleProdJob(ctx context.Context, job models.Request, results chan<- model
 		if price.FreightExternal == "Y" {
 			continue
 		}
-		// if price.Bron == false {
-		// 	continue
-		// }
+		if price.Bron == false {
+			continue
+		}
 		ticket := utils.TransformSamoPriceToTicket(
 			price, job.Departure,
 			job.Operator, job.DestCountryName, job.DestImageUrl,
