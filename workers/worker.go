@@ -49,6 +49,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 	bodyBytes, _ := json.Marshal(payload)
 	testURL := os.Getenv("TEST_URL")
 	log.Println("Started Test Job For Operator: ", job.Operator)
+    log.Println("URL For Operator: ", job.Url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		log.Fatal("requst error  testURL", err)
@@ -112,6 +113,7 @@ func handleTestJob(ctx context.Context, job models.Request, results chan<- model
 func handleProdJob(ctx context.Context, job models.Request, results chan<- models.Result, hotelService *services.HotelService) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
 	log.Println("Started PROD Job For Operator: ", job.Operator)
+	log.Println("URL For Operator: ", job.Url)
 	if err != nil {
 		log.Fatal("Errrr NewRequestWithContext", err)
 		results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
