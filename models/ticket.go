@@ -31,6 +31,8 @@ type Ticket struct {
     DestinationID  int            `json:"destination_id"`
     DepartureTime  string         `json:"departure_time"`
     HotelPhoto     string         `json:"hotel_photo"`
+    Currency       string         `json:"currency"`
+    HotelAvailability   string    `json:"hotelAvailability"`
     HotelPhotoCount     int        `json:"hotel_photo_count"`
     Departure      DepartureInfo  `json:"departure"`
     PassengerCount int            `json:"passenger_count"`

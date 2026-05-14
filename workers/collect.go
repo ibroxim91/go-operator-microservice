@@ -40,11 +40,7 @@ func CollectResults(ctx context.Context, jobsList []models.Request, workerCount 
 		page = jobsList[0].Page
 	}
 	for res := range results {
-		if len(res.Prices) == 100 {
-			total += res.Pager.Total * 100
-		} else if len(res.Prices) == 200 {
-			total += res.Pager.Total * 200
-		}
+		total += res.Pager.Total * len(res.Prices)
 		allResults = append(allResults, res.Prices...)
 	}
 	log.Println("REsults len ", len(allResults))

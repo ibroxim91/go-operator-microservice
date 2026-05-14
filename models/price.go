@@ -13,6 +13,7 @@ type Price struct {
     Star     string `json:"star"`
     Meal     string `json:"meal"`
     Currency string `json:"currency"`
+    HotelAvailability   string    `json:"hotelAvailability"`
     Price    string `json:"price"`
     Room     string `json:"room"`
     Place     string `json:"htPlace"`

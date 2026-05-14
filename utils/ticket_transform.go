@@ -10,7 +10,7 @@ import (
 )
 
 func TransformSamoPriceToTicket(price models.Price, departure, operator, country, countrImageUrl string,
-	currentUsdCourse float64, destinationID, departureID, countryID int,  hotelService *services.HotelService, fromCache bool) *models.Ticket {
+	currentUsdCourse float64, destinationID, departureID, countryID int, hotelService *services.HotelService, fromCache bool) *models.Ticket {
 
 	priceValue := 0.0
 	if val, err := strconv.ParseFloat(price.Price, 64); err == nil {
@@ -38,25 +38,24 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	slug = strings.ReplaceAll(slug, "/", "-")
 	slug += fmt.Sprintf("-%d", price.StateKey)
 
-	
-
-
 	ticket := &models.Ticket{
-		TourOperatorID: price.ID,
-		ID:             price.TourKey,
-		Title:          price.Tour,
-		Slug:           slug,
-		Bron:           price.Bron,
-		Nights:         price.Nights,
-		Price:          priceStr,
-		PriceFull:      priceValueUsz,
-		RoomType:       price.Room,
-		Place:          price.Place,
-		FreightExternal: price.FreightExternal,
-		Operator:       operator,
-		DepartureID:    departureID,
-		DestinationID:  destinationID,
-		DepartureTime:  price.CheckIn,
+		TourOperatorID:  	price.ID,
+		ID:              	price.TourKey,
+		Title:           	price.Tour,
+		Currency:        	price.Currency,
+		HotelAvailability:  price.HotelAvailability,
+		Slug:            	slug,
+		Bron:            	price.Bron,
+		Nights:          	price.Nights,
+		Price:           	priceStr,
+		PriceFull:       	priceValueUsz,
+		RoomType:        	price.Room,
+		Place:           	price.Place,
+		FreightExternal: 	price.FreightExternal,
+		Operator:        	operator,
+		DepartureID:     	departureID,
+		DestinationID:   	destinationID,
+		DepartureTime:   	price.CheckIn,
 		Departure: models.DepartureInfo{
 			ID:      price.TownFromKey,
 			Name:    departure,
@@ -105,19 +104,19 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		ExtraService:     []string{},
 		PaidExtraService: []string{},
 	}
-	
-		hotelWithPhoto, _ , err := hotelService.GetHotelWithPhoto(
+
+	hotelWithPhoto, _, err := hotelService.GetHotelWithPhoto(
 		price.HotelKey,
 		hotelName,
 		operator,
 		countryID,
 		strings.ToUpper(price.Meal),
-		)
+	)
 
-		if err == nil && hotelWithPhoto != nil {
-			ticket.HotelPhoto = hotelWithPhoto.Photo
-			ticket.HotelPhotoCount = hotelWithPhoto.Count
-		}
+	if err == nil && hotelWithPhoto != nil {
+		ticket.HotelPhoto = hotelWithPhoto.Photo
+		ticket.HotelPhotoCount = hotelWithPhoto.Count
+	}
 
 	return ticket
 }
