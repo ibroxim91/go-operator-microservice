@@ -169,3 +169,5 @@ func handleProdJob(ctx context.Context, job models.Request, results chan<- model
 		DepartureID:   job.DepartureID,
 	}
 }
+
+
