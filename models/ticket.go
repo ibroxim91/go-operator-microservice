@@ -72,6 +72,8 @@ type Ticket struct {
     PaidExtraService       []string          `json:"paid_extra_service"`
 }
 
+
+
 type IncludedService struct {
     Image string `json:"image"`
     Title string `json:"title"`
@@ -89,7 +91,7 @@ type Tariff struct {
 }
 
 type Transport struct {
-    Type string `json:"type"`
+    ID  int `json:"id"`
     Name string `json:"name"`
 }
 

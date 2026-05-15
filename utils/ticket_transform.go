@@ -100,7 +100,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		TravelAgencyID:   "samo_api",
 		TicketComments:   []string{},
 		Tariff:           []models.Tariff{{Name: "Стандарт"}},
-		Transports:       []models.Transport{}, // list bo‘lib qoladi
+		Transports:       []models.Transport{{ID: 0, Name: "Регулярный"}, {ID: 1, Name: "Чартер"} }, // list bo‘lib qoladi
 		ExtraService:     []string{},
 		PaidExtraService: []string{},
 	}
