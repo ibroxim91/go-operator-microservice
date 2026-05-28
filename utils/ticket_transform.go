@@ -43,7 +43,9 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	slug := strings.ToLower(strings.ReplaceAll(price.Tour, " ", "-"))
 	slug = strings.ReplaceAll(slug, "/", "-")
 	slug += fmt.Sprintf("-%d", price.StateKey)
-	countrImageUrl = fmt.Sprintf("%s%s", os.Getenv("MEDIA_URL"), countrImageUrl)
+	if os.Getenv("TEST") == "true" {
+		countrImageUrl = fmt.Sprintf("%s%s", os.Getenv("MEDIA_URL"), countrImageUrl)
+	}
 	ticket := &models.Ticket{
 		TourOperatorID:    price.ID,
 		ID:                price.TourKey,
