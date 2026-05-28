@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/utils"
@@ -24,7 +25,10 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 	log.Println("URL For Operator: ", job.Url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		log.Fatal("requst error  testURL", err)
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error creating test request")
 		results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
 		return
 	}
@@ -32,7 +36,10 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Fatal("N request ", err)
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error fetching")
 		results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
 		return
 	}
@@ -40,14 +47,20 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Error red body", err)
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error reading body")
 		results <- models.Result{Error: fmt.Sprintf("Error reading body: %v", err)}
 		return
 	}
 
 	var parsed models.SearchTourResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		log.Fatal("Errrr unmarshal json", err)
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error parsing JSON")
 		results <- models.Result{Error: fmt.Sprintf("Error parsing JSON: %v", err)}
 		return
 	}
@@ -65,8 +78,12 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 		formatPrices = append(formatPrices, ticket)
 	}
 
-	fmt.Println("len formatPrices for opertor ", job.Operator, len(formatPrices))
-	fmt.Println("parsed.SearchTour_PRICES.Pager.Total for opertor", job.Operator, parsed.SearchTour_PRICES.Pager.Total)
+	logger.Log.Info().
+		Str("handler", "search-tours").
+		Msg(fmt.Sprintf("len formatPrices for opertor %s: %d", job.Operator, len(formatPrices)))
+	logger.Log.Info().
+		Str("handler", "search-tours").
+		Msg(fmt.Sprintf("parsed.SearchTour_PRICES.Pager.Total for opertor %s: %d", job.Operator, parsed.SearchTour_PRICES.Pager.Total))
 	// Agar 100 tadan kam bo‘lsa → boshqa pagelarni ham olish
 	if len(formatPrices) < 500 && parsed.SearchTour_PRICES.Pager.Total > 1 {
 		ch := make(chan []*models.Ticket)

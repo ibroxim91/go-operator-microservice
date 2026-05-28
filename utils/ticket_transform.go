@@ -5,6 +5,7 @@ import (
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -16,7 +17,11 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	if val, err := strconv.ParseFloat(price.Price, 64); err == nil {
 		priceValue = val
 	}
-	priceValueUsz := int(priceValue * float64(currentUsdCourse+200))
+
+	// kursga doimiy 200 qo‘shib hisoblash
+	adjustedCourse := currentUsdCourse + 200
+	priceValueUsz := int(priceValue * adjustedCourse)
+
 	mln := float64(priceValueUsz) / 1_000_000
 
 	var priceStr string
@@ -25,6 +30,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	} else {
 		priceStr = fmt.Sprintf("%.1f", mln)
 	}
+
 
 	hotelName := price.Hotel
 	if strings.Contains(hotelName, "(") && strings.Contains(hotelName, ")") {
@@ -37,7 +43,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	slug := strings.ToLower(strings.ReplaceAll(price.Tour, " ", "-"))
 	slug = strings.ReplaceAll(slug, "/", "-")
 	slug += fmt.Sprintf("-%d", price.StateKey)
-
+	countrImageUrl = fmt.Sprintf("%s%s", os.Getenv("MEDIA_URL"), countrImageUrl)
 	ticket := &models.Ticket{
 		TourOperatorID:    price.ID,
 		ID:                price.TourKey,

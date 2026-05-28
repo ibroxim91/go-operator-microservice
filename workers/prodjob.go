@@ -1,49 +1,61 @@
 package workers
 
-
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/utils"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"sync"
-
 )
 
 // Production rejimdagi so‘rovlar
 func HandleProdJob(ctx context.Context, job models.Request, results chan<- models.Result, hotelService *services.HotelService) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
-	log.Println("Started PROD Job For Operator: ", job.Operator)
-	log.Println("URL For Operator: ", job.Url)
+       logger.Log.Info().
+        Str("handler", "search-tours").
+        Str("url", job.Url).
+        Msg("Starting production job")
 	if err != nil {
-		log.Fatal("Error creating request", err)
+		logger.Log.Error().
+            Err(err).
+            Str("handler", "search-tours").
+            Msg("error creating request")
 		results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
 		return
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error fetching")
 		results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
-		log.Fatal("Error DefaultClient", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Error reading body", err)
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error reading body")
 		results <- models.Result{Error: fmt.Sprintf("Error reading body: %v", err)}
 		return
 	}
 
 	var parsed models.SearchTourResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		log.Fatal("Error Unmarshal", err)
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error parsing JSON")
 		results <- models.Result{Error: fmt.Sprintf("Error parsing JSON: %v", err)}
 		return
 	}
