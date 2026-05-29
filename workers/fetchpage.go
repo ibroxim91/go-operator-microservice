@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
@@ -40,7 +41,10 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 		payload := map[string]string{"url": job.Url}
 		bodyBytes, _ := json.Marshal(payload)
 		testURL := os.Getenv("TEST_URL")
-
+        logger.Log.Info().
+            Str("handler", "search-tours").
+            Str("url", job.Url).
+            Msg("Starting test job")
 		req, err = http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
 		if err != nil {
 			logger.Log.Error().
@@ -54,6 +58,10 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 	} else {
 		// 🔹 Production rejimda GET qilish
 		url, err := buildURL(job.Url, page)
+        logger.Log.Info().
+            Str("handler", "search-tours").
+            Str("url", url).
+            Msg("Starting production job")
 		if err != nil {
 			logger.Log.Error().
 				Err(err).
@@ -95,7 +103,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 		ch <- nil
 		return
 	}
-
+    logger.Log.Info().
+        Str("handler", "search-tours").
+        Msg(fmt.Sprintf("len prices for opertor %s: %d page %d", job.Operator, len(parsed.SearchTour_PRICES.Prices), page))
 	tickets := []*models.Ticket{}
 
 	for _, price := range parsed.SearchTour_PRICES.Prices {

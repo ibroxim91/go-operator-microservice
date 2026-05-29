@@ -80,6 +80,9 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
         var wg sync.WaitGroup
 
         for page := 2; page <= parsed.SearchTour_PRICES.Pager.Total; page++ {
+            if page == 10{
+                break
+            }
             wg.Add(1)
             go func(p int) {
                 defer wg.Done()

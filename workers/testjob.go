@@ -10,7 +10,6 @@ import (
 	"go-operator-service/services"
 	"go-operator-service/utils"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -21,8 +20,12 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 	payload := map[string]string{"url": job.Url}
 	bodyBytes, _ := json.Marshal(payload)
 	testURL := os.Getenv("TEST_URL")
-	log.Println("Started Test Job For Operator: ", job.Operator)
-	log.Println("URL For Operator: ", job.Url)
+	logger.Log.Info().
+		Str("handler", "search-tours").
+		Msg(fmt.Sprintf("Started Test Job For Operator: %s", job.Operator))
+	logger.Log.Info().
+		Str("handler", "search-tours").
+		Msg(fmt.Sprintf("URL For Operator: %s", job.Url))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		logger.Log.Error().
@@ -90,6 +93,9 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 		var wg sync.WaitGroup
 
 		for page := 2; page <= parsed.SearchTour_PRICES.Pager.Total; page++ {
+			 if page == 10{
+                break
+            }
 			wg.Add(1)
 			go func(p int) {
 				defer wg.Done()

@@ -109,26 +109,28 @@ func GetTownMapping(db *sql.DB, operator string, townID int) (*TownMapping, erro
 }
 
 func GetTownMappingsByRegion(db *sql.DB, operator string, regionID int) ([]TownMapping, error) {
-	query := `SELECT town_id, operator_town_id
-              FROM api_townmapping
-              WHERE operator = $1 AND region_id = $2`
+    query := `SELECT tm.town_id, tm.operator_town_id
+              FROM api_townmapping tm
+              JOIN towns t ON tm.town_id = t.id
+              WHERE tm.operator = $1 AND t.region_id = $2`
 
-	rows, err := db.Query(query, operator, regionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+    rows, err := db.Query(query, operator, regionID)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
-	var mappings []TownMapping
-	for rows.Next() {
-		var mapping TownMapping
-		if err := rows.Scan(&mapping.TownID, &mapping.OperatorTownID); err != nil {
-			continue
-		}
-		mappings = append(mappings, mapping)
-	}
-	return mappings, nil
+    var mappings []TownMapping
+    for rows.Next() {
+        var mapping TownMapping
+        if err := rows.Scan(&mapping.TownID, &mapping.OperatorTownID); err != nil {
+            continue
+        }
+        mappings = append(mappings, mapping)
+    }
+    return mappings, nil
 }
+
 
 func GetMealPlanMapping(db *sql.DB, operator string, mealID int) (*HotelMealPlanMapping, error) {
 	query := `SELECT meal_plan_id, meal_key
@@ -181,3 +183,5 @@ func SaveQueryCache(db *sql.DB, queryKey, operator, url, destinationImageURL str
 
 	return err
 }
+
+

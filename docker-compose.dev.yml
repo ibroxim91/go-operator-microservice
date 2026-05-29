@@ -6,6 +6,8 @@ networks:
 
 services:
   echo:
+    labels:
+      logging: "promtail"
     build:
       context: .
       dockerfile: ./Dockerfile

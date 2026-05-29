@@ -207,7 +207,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	if mostExpensive {
 		params["SORT"] = "DESC"
 	}
-	if params["NIGHTS_LIST"] == ""  {
+	if params["NIGHTS_LIST"] == "" {
 		params["NIGHTS_LIST"] = "2,3,4,5,6,7"
 	}
 
@@ -218,6 +218,7 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 	stateID, _ := strconv.Atoi(mappedParams["STATEINC"])
 	townFromID, _ := strconv.Atoi(mappedParams["TOWNFROMINC"])
 	townID, _ := strconv.Atoi(mappedParams["TOWNS"])
+	DestinationID, _ := strconv.Atoi(mappedParams["destination"])
 	mealID, _ := strconv.Atoi(mappedParams["MEALS"])
 	ratingVal := mappedParams["STARS"]
 
@@ -260,6 +261,24 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 			return nil, false, err
 		}
 		mappedParams["TOWNS"] = strconv.Itoa(townMapping.OperatorTownID)
+	} else if townID == 0 && townFromID > 0 {
+		townMappings, err := repository.GetTownMappingsByRegion(s.DB, operatorName, DestinationID)
+		if err != nil {
+			logger.Log.Error().
+				Err(err).
+				Str("operator", operatorName).
+				Int("regionID", DestinationID).
+				Msg("error fetching town mappings by region")
+			return nil, false, nil
+		}
+		
+		if len(townMappings) > 0 {
+			operatorTownIDs := make([]string, 0, len(townMappings))
+			for _, mapping := range townMappings {
+				operatorTownIDs = append(operatorTownIDs, strconv.Itoa(mapping.OperatorTownID))
+			}
+			mappedParams["TOWNS"] = strings.Join(operatorTownIDs, ",")
+		}
 	}
 
 	if mealID > 0 {
@@ -304,7 +323,7 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 		if err != nil {
 			logger.Log.Error().
 				Err(err).
-					Str("handler", "search-tours").
+				Str("handler", "search-tours").
 				Msg("request bind failed")
 			currentUsdCourse = 1.0
 		} else {
