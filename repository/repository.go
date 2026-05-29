@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 	"sync"
-    "github.com/agnivade/levenshtein"
+    // "github.com/agnivade/levenshtein"
 )
 
 type Hotel struct {
@@ -141,20 +141,33 @@ func normalize(s string) string {
 }
 
 func similarity(a, b string) float64 {
-	distance := levenshtein.ComputeDistance(a, b)
 
-	maxLen := len(a)
-	if len(b) > maxLen {
-		maxLen = len(b)
+	aWords := strings.Fields(a)
+	bWords := strings.Fields(b)
+
+	matchCount := 0
+
+	for _, aw := range aWords {
+		for _, bw := range bWords {
+
+			if aw == bw {
+				matchCount++
+				break
+			}
+		}
 	}
 
-	if maxLen == 0 {
-		return 100
+	maxWords := len(aWords)
+	if len(bWords) > maxWords {
+		maxWords = len(bWords)
 	}
 
-	return (1.0 - float64(distance)/float64(maxLen)) * 100
+	if maxWords == 0 {
+		return 0
+	}
+
+	return (float64(matchCount) / float64(maxWords)) * 100
 }
-
 func FindHotelByName(countryID int, hotelName string) (*Hotel, error) {
 
 	cacheMu.RLock()
