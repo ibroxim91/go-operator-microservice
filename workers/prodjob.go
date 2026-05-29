@@ -29,7 +29,7 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).

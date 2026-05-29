@@ -13,7 +13,21 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
+
+var client = &http.Client{
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:          200,
+		MaxIdleConnsPerHost:   50,
+		MaxConnsPerHost:       100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ResponseHeaderTimeout: 5 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	},
+}
 
 // Test rejimdagi so‘rovlarni alohida funksiya
 func HandleTestJob(ctx context.Context, job models.Request, results chan<- models.Result, hotelService *services.HotelService) {
@@ -36,8 +50,15 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
+	start := time.Now()
+	resp, err := client.Do(req)
 
-	resp, err := http.DefaultClient.Do(req)
+	duration := time.Since(start)
+	logger.Log.Info().
+		Str("operator", job.Operator).
+		Dur("duration", duration).
+		Msg("operator request finished")
+
 	if err != nil {
 		logger.Log.Error().
 			Err(err).

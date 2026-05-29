@@ -1,119 +1,218 @@
 package repository
 
 import (
-    "database/sql"
-    "strings"
+	"database/sql"
+	"log"
+	"strings"
+	"sync"
+    "github.com/agnivade/levenshtein"
 )
 
 type Hotel struct {
-    ID   int
-    Name string
-}
-
-type HotelMapping struct {
-    ID           int
-    Operator     string
-    OperatorHotelID int
-    HotelID      int
+	ID   int
+	Name string
 }
 
 type HotelPhoto struct {
-    URL   string
-    Note  string
-    Count int // qo‘shimcha field
+	URL   string
+	Note  string
+	Count int // qo‘shimcha field
 }
 
+var (
+	dbQueryCounter int
+	hotelsCache    map[int][]Hotel
+	cacheOnce      sync.Once
+	cacheErr       error
+	cacheMu        sync.RWMutex
+	photoCache     = map[int]*HotelPhoto{}
+	photoMu        sync.RWMutex
+)
 
 func GetHotelData(db *sql.DB, hotelID int, hotelName, operator string, countryID int, mealPlan string) (*Hotel, bool, error) {
-    // Avval mappingdan qidiramiz
-    hotel, err := GetHotelFromMapping(db, hotelID, operator)
-    exists := true
-    if err != nil || hotel == nil {
-        exists = false
-        // Agar mapping topilmasa → country_id bo‘yicha qidirish
-        hotel, err = FindHotelByName(db, countryID, hotelName)
-        if err != nil {
-            return nil, exists, err
-        }
-        // Topilgan hotelni mapping jadvaliga saqlash
-        _ = SaveHotelMapping(db, operator, hotelID, hotel.ID)
-    }
-    return hotel, exists, nil
+	// Avval barcha hotellar cache ga yuklanadi, so‘ng hotel nomi bo‘yicha qidiriladi
+	log.Println("Db query count ", dbQueryCounter)
+	if err := preloadHotelsCache(db); err != nil {
+		log.Println("Error loding hotels cache ", err)
+		return nil, false, err
+	}
+
+	hotel, err := FindHotelByName(countryID, hotelName)
+	if err != nil {
+		return nil, false, err
+	}
+	return hotel, false, nil
 }
 
+func preloadHotelsCache(db *sql.DB) error {
+	cacheOnce.Do(func() {
+		query := `SELECT id, name, country_id FROM api_hotel`
+		dbQueryCounter++
+		rows, err := db.Query(query)
+		if err != nil {
+			cacheErr = err
+			return
+		}
+		defer rows.Close()
 
+		tempCache := make(map[int][]Hotel)
+		for rows.Next() {
+			var h Hotel
+			var countryID int
+			if err := rows.Scan(&h.ID, &h.Name, &countryID); err != nil {
+				continue
+			}
+			tempCache[countryID] = append(tempCache[countryID], h)
+		}
+		if err := rows.Err(); err != nil {
+			cacheErr = err
+			return
+		}
+
+		cacheMu.Lock()
+		hotelsCache = tempCache
+		cacheMu.Unlock()
+	})
+
+	return cacheErr
+}
 
 func GetHotelPhoto(db *sql.DB, hotelID int) (*HotelPhoto, error) {
-    // 1. Birinchi rasmni olish
-    query := `SELECT url, note FROM api_hotelphoto WHERE hotel_id = $1 ORDER BY id ASC LIMIT 1`
-    row := db.QueryRow(query, hotelID)
 
-    var photo HotelPhoto
-    err := row.Scan(&photo.URL, &photo.Note)
-    if err != nil {
-        return nil, err
-    }
+	photoMu.RLock()
+	photo, ok := photoCache[hotelID]
+	photoMu.RUnlock()
 
-    // 2. Rasmlar sonini olish
-    countQuery := `SELECT COUNT(*) FROM api_hotelphoto WHERE hotel_id = $1`
-    err = db.QueryRow(countQuery, hotelID).Scan(&photo.Count)
-    if err != nil {
-        return nil, err
-    }
+	if ok {
+		return photo, nil
+	}
 
-    return &photo, nil
+	query := `
+	SELECT 
+		url,
+		note,
+		COUNT(*) OVER() as total_count
+	FROM api_hotelphoto
+	WHERE hotel_id = $1
+	ORDER BY id ASC
+	LIMIT 1
+	`
+
+	row := db.QueryRow(query, hotelID)
+
+	dbQueryCounter++
+
+	var p HotelPhoto
+
+	err := row.Scan(
+		&p.URL,
+		&p.Note,
+		&p.Count,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	photoMu.Lock()
+	photoCache[hotelID] = &p
+	photoMu.Unlock()
+
+	return &p, nil
+}
+func normalize(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+
+	replacer := strings.NewReplacer(
+		"&", "and",
+		"-", " ",
+		"_", " ",
+		".", "",
+		",", "",
+		"*", "",
+	)
+
+	s = replacer.Replace(s)
+
+	// double spaces remove
+	s = strings.Join(strings.Fields(s), " ")
+
+	return s
 }
 
-// get_hotel_from_mapping: avval mappingdan qidiradi
-func GetHotelFromMapping(db *sql.DB, hotelID int, operator string) (*Hotel, error) {
-    query := `SELECT h.id, h.name 
-              FROM hotel_mapping m 
-              JOIN api_hotel h ON m.hotel_id = h.id
-              WHERE m.operator = $1 AND m.operator_hotel_id = $2 LIMIT 1`
+func similarity(a, b string) float64 {
+	distance := levenshtein.ComputeDistance(a, b)
 
-    row := db.QueryRow(query, operator, hotelID)
-    var hotel Hotel
-    err := row.Scan(&hotel.ID, &hotel.Name)
-    if err != nil {
-        return nil, err
-    }
-    return &hotel, nil
+	maxLen := len(a)
+	if len(b) > maxLen {
+		maxLen = len(b)
+	}
+
+	if maxLen == 0 {
+		return 100
+	}
+
+	return (1.0 - float64(distance)/float64(maxLen)) * 100
 }
 
-func FindHotelByName(db *sql.DB, countryID int, hotelName string) (*Hotel, error) {
-    query := `SELECT id, name FROM api_hotel WHERE country_id = $1`
-    rows, err := db.Query(query, countryID)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+func FindHotelByName(countryID int, hotelName string) (*Hotel, error) {
 
-    hotelName = strings.ToLower(strings.TrimSpace(hotelName))
-    var hotel Hotel
-    for rows.Next() {
-        var h Hotel
-        if err := rows.Scan(&h.ID, &h.Name); err != nil {
-            continue
-        }
-        hName := strings.ToLower(strings.TrimSpace(h.Name))
-        if strings.Contains(hName, hotelName) || strings.Contains(hotelName, hName) {
-            hotel = h
-            break
-        }
-    }
-    if hotel.ID == 0 {
-        return nil, sql.ErrNoRows
-    }
-    return &hotel, nil
+	cacheMu.RLock()
+	hotels, ok := hotelsCache[countryID]
+	cacheMu.RUnlock()
+
+	// log.Println(
+	// 	"FindHotelByName start hotelName:",
+	// 	hotelName,
+	// 	"| CountryID:",
+	// 	countryID,
+	// 	"| Hotels:",
+	// 	len(hotels),
+	// 	"| Cache hit:",
+	// 	ok,
+	// )
+
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+
+	target := normalize(hotelName)
+
+	var bestHotel *Hotel
+	bestScore := 0.0
+
+	for _, h := range hotels {
+
+		hName := normalize(h.Name)
+
+		score := similarity(target, hName)
+
+		if score > bestScore {
+			bestScore = score
+
+			tmp := h
+			bestHotel = &tmp
+		}
+	}
+
+	// log.Println(
+	// 	"BEST MATCH:",
+	// 	bestHotel.Name,
+	// 	"| score:",
+	// 	bestScore,
+	// )
+
+	// threshold
+	if bestHotel != nil && bestScore >= 70 {
+		return bestHotel, nil
+	}
+
+	// log.Println(
+	// 	"Hotel not found in cache for name:",
+	// 	hotelName,
+	// 	"| CountryID:",
+	// 	countryID,
+	// )
+
+	return nil, sql.ErrNoRows
 }
-
-
-func SaveHotelMapping(db *sql.DB, operator string, operatorHotelID int, hotelID int) error {
-    query := `INSERT INTO hotel_mapping (operator, operator_hotel_id, hotel_id) 
-              VALUES ($1, $2, $3)`
-    _, err := db.Exec(query, operator, operatorHotelID, hotelID)
-    return err
-}
-
-
-

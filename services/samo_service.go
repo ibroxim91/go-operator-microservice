@@ -105,7 +105,6 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	if children == "" || parsePositiveInt(children) < 0 {
 		children = "0"
 	}
-
 	if countryID == "" && destination != "" {
 		destinationID := parsePositiveInt(destination)
 		if destinationID > 0 {
@@ -122,6 +121,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 			}
 		}
 	}
+	log.Println("CountryId ", countryID, " | Destination ", destination, " | Town ", town, " | Departure ", departure)
 
 	if departure == "" || countryID == "" {
 		if destination != "" || fromCache {
@@ -316,7 +316,7 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 	var urls []models.Request
 	configs := s.getServiceConfigs()
 	queryOperator := strings.TrimSpace(params["OPERATOR"])
-
+	
 	currentUsdCourse := parsePositiveFloat(params["current_usd_course"], 0)
 	if currentUsdCourse <= 0 {
 		fetchedRate, err := s.GetCurrentUsdCourse()
@@ -399,7 +399,7 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 
 		destinationID := parsePositiveInt(mapped["destination"])
 		departureID := parsePositiveInt(mapped["departure"])
-		countryID := parsePositiveInt(mapped["STATEINC"])
+		countryID := parsePositiveInt(params["STATEINC"])
 		page := parsePositiveInt(params["PRICEPAGE"])
 		if page == 0 {
 			page = 1

@@ -1,8 +1,9 @@
 package services
 
 import (
-    "database/sql"
-    "go-operator-service/repository"
+	"database/sql"
+	"go-operator-service/repository"
+
 )
 
 type HotelService struct {
@@ -22,9 +23,10 @@ func NewHotelService(db *sql.DB) *HotelService {
     return &HotelService{DB: db}
 }
 
-// GetHotelWithPhoto: hotelni mapping orqali topadi va birinchi rasmni qo‘shadi
+// GetHotelWithPhoto: hotelni cache orqali topadi va birinchi rasmni qo‘shadi
 func (s *HotelService) GetHotelWithPhoto(hotelID int, hotelName, operator string, countryID int, mealPlan string) (*HotelWithPhoto, bool, error) {
     hotel, exists, err := repository.GetHotelData(s.DB, hotelID, hotelName, operator, countryID, mealPlan)
+
     if err != nil || hotel == nil {
         return nil, exists, err
     }
