@@ -5,7 +5,6 @@ import (
 	"log"
 	"strings"
 	"sync"
-    // "github.com/agnivade/levenshtein"
 )
 
 type Hotel struct {

@@ -50,7 +50,7 @@ func main() {
         frontendOrigin = "http://localhost:3000"
     }
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-        AllowOrigins: []string{frontendOrigin},
+        AllowOrigins: []string{frontendOrigin, "http://127.0.0.1:5500"},
         AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
         AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
     }))

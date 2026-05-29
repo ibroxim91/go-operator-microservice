@@ -16,7 +16,7 @@ func CollectResults(ctx context.Context, jobsList []models.Request, workerCount 
 	var wg sync.WaitGroup
 	for i := 0; i < workerCount; i++ {
 		wg.Add(1)
-		go worker(ctx, jobs, results, &wg, hotelService)
+		go Worker(ctx, jobs, results, &wg, hotelService)
 	}
 
 	for _, job := range jobsList {

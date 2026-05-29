@@ -13,7 +13,7 @@ func init() {
 	_ = godotenv.Load(".env")
 }
 
-func worker(ctx context.Context, jobs <-chan models.Request, results chan<- models.Result, wg *sync.WaitGroup, hotelService *services.HotelService) {
+func Worker(ctx context.Context, jobs <-chan models.Request, results chan<- models.Result, wg *sync.WaitGroup, hotelService *services.HotelService) {
 	defer wg.Done()
 	for {
 		select {
