@@ -95,6 +95,34 @@ func (r *RedisCache) SetCachedAsyncResult(ctx context.Context, key string, resp 
 	return r.client.Set(ctx, key, payload, ttl).Err()
 }
 
+func (r *RedisCache) GetCachedStreamResult(
+    ctx context.Context,
+    key string,
+) (*models.StreamCacheResult, error) {
+
+    value, err := r.client.Get(ctx, key).Result()
+
+    if err != nil {
+
+        if err == redis.Nil {
+            return nil, nil
+        }
+
+        return nil, err
+    }
+
+    var result models.StreamCacheResult
+
+    if err := json.Unmarshal(
+        []byte(value),
+        &result,
+    ); err != nil {
+        return nil, err
+    }
+
+    return &result, nil
+}
+
 func (r *RedisCache) GetOrSetCachedResponse(ctx context.Context, key string, ttl time.Duration, fetch func() (*models.ResultResponse, error)) (*models.ResultResponse, error) {
 	cached, err := r.GetCachedResponse(ctx, key)
 	if err != nil {
@@ -136,4 +164,52 @@ func GenerateCacheKey(params map[string]string) string {
 
 	hash := sha256.Sum256([]byte(builder.String()))
 	return "async_samo:" + hex.EncodeToString(hash[:])
+}
+
+func (r *RedisCache) SetCachedStreamResult(
+    ctx context.Context,
+    key string,
+    result *models.StreamCacheResult,
+    ttl time.Duration,
+) error {
+
+    payload, err := json.Marshal(result)
+
+    if err != nil {
+        return err
+    }
+
+    return r.client.Set(
+        ctx,
+        key,
+        payload,
+        ttl,
+    ).Err()
+}
+
+
+func BuildStreamCacheKey(
+	params map[string]string,
+) string {
+
+	filtered := make(map[string]string)
+
+	for k, v := range params {
+
+		switch k {
+		case "page",
+			"page_size",
+			"PRICEPAGE":
+			continue
+		}
+
+		filtered[k] = v
+	}
+
+	b, _ := json.Marshal(filtered)
+
+	hash := sha256.Sum256(b)
+
+	return "stream:" +
+		hex.EncodeToString(hash[:])
 }

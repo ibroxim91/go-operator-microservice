@@ -41,10 +41,29 @@ func StreamFetchPage(
 	var resp *http.Response
 	var err error
 	var req *http.Request
+	logger.Log.Info().
+		Int("page", page).
+		Str("url", job.Url).
+		Msg("FETCH PAGE")
 
+	url, err := buildURL(job.Url, page)
+		logger.Log.Info().
+			Str("handler", "search-tours").
+			Str("url", url).
+			Msg("Starting production job")
+		if err != nil {
+			logger.Log.Error().
+				Err(err).
+				Str("handler", "search-tours").
+				Msg("error building URL")
+			results <- models.Result{
+				Error: err.Error(),
+			}
+			return
+		}
 	if testMode {
 		// 🔹 Test rejimda POST qilish
-		payload := map[string]string{"url": job.Url}
+		payload := map[string]string{"url": url}
 		bodyBytes, _ := json.Marshal(payload)
 		testURL := os.Getenv("TEST_URL")
 		logger.Log.Info().
@@ -65,21 +84,7 @@ func StreamFetchPage(
 		req.Header.Set("Content-Type", "application/json")
 	} else {
 		// 🔹 Production rejimda GET qilish
-		url, err := buildURL(job.Url, page)
-		logger.Log.Info().
-			Str("handler", "search-tours").
-			Str("url", url).
-			Msg("Starting production job")
-		if err != nil {
-			logger.Log.Error().
-				Err(err).
-				Str("handler", "search-tours").
-				Msg("error building URL")
-			results <- models.Result{
-				Error: err.Error(),
-			}
-			return
-		}
+		
 		req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			logger.Log.Error().

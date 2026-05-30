@@ -119,3 +119,10 @@ type TicketHotel struct {
     MealPlan string `json:"meal_plan"`
     Rating   interface{} `json:"rating"` // int yoki string bo‘lishi mumkin
 }
+
+
+type StreamCacheResult struct {
+    Tickets []*Ticket       `json:"tickets"`
+    Hotels  []HotelSummary  `json:"hotels"`
+    Total   int             `json:"total"`
+}
