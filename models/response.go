@@ -55,6 +55,7 @@ type Result struct {
 	DestinationID int       `json:"destination_id"`
 	DepartureID   int       `json:"departure_id"`
 	DestCountry   string    `json:"country"`
+	Page          int       `json:"page"`
 	Error         string    `json:"error,omitempty"`
 }
 

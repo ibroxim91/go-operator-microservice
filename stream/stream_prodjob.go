@@ -1,4 +1,4 @@
-package workers
+package stream
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 )
 
 // Production rejimdagi so‘rovlar
-func HandleProdJob(ctx context.Context, job models.Request, results chan<- models.Result, hotelService *services.HotelService) {
+func StreamHandleProdJob(ctx context.Context, job models.Request, results chan<- models.Result, hotelService *services.HotelService) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
        logger.Log.Info().
         Str("handler", "search-tours").
@@ -86,7 +86,7 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
             wg.Add(1)
             go func(p int) {
                 defer wg.Done()
-                FetchPage(ctx, p, job, hotelService, ch)
+                StreamFetchPage(ctx, p, job, hotelService, results)
             }(page)
         }
 
@@ -114,3 +114,4 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
         DepartureID:   job.DepartureID,
     }
 }
+

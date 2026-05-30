@@ -1,4 +1,4 @@
-package workers
+package stream
 
 import (
 	"bytes"
@@ -28,7 +28,13 @@ func buildURL(base string, page int) (string, error) {
 	return u.String(), nil
 }
 
-func FetchPage(ctx context.Context, page int, job models.Request, hotelService *services.HotelService, ch chan<- []*models.Ticket) {
+func StreamFetchPage(
+    ctx context.Context,
+    page int,
+    job models.Request,
+    hotelService *services.HotelService,
+    results chan<- models.Result,
+){
 
 	testMode := os.Getenv("TEST") == "true"
 
@@ -51,7 +57,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 				Err(err).
 				Str("handler", "search-tours").
 				Msg("error creating test request")
-			ch <- nil
+			results <- models.Result{
+				Error: err.Error(),
+			}
 			return
 		}
 		req.Header.Set("Content-Type", "application/json")
@@ -67,7 +75,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 				Err(err).
 				Str("handler", "search-tours").
 				Msg("error building URL")
-			ch <- nil
+			results <- models.Result{
+				Error: err.Error(),
+			}
 			return
 		}
 		req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -76,7 +86,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 				Err(err).
 				Str("handler", "search-tours").
 				Msg("error creating prod request")
-			ch <- nil
+			results <- models.Result{
+				Error: err.Error(),
+			}
 			return
 		}
 	}
@@ -87,7 +99,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 			Err(err).
 			Str("handler", "search-tours").
 			Msg("request bind failed")
-		ch <- nil
+		results <- models.Result{
+			Error: err.Error(),
+		}
 		return
 	}
 	defer resp.Body.Close()
@@ -100,7 +114,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 			Err(err).
 			Str("handler", "search-tours").
 			Msg("error parsing page")
-		ch <- nil
+		results <- models.Result{
+			Error: err.Error(),
+		}
 		return
 	}
 	logger.Log.Info().
@@ -120,6 +136,15 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 		)
 		tickets = append(tickets, ticket)
 	}
-
-	ch <- tickets
+	if len(tickets) > 0 {
+		results <- models.Result{
+			Prices:        tickets,
+			Operator:      job.Operator,
+			Departure:     job.Departure,
+			DestCountry:   job.DestCountryName,
+			DestinationID: job.DestinationID,
+			DepartureID:   job.DepartureID,
+			Page:          page,
+		}
+	}
 }

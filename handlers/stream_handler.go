@@ -3,11 +3,12 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"go-operator-service/cache"
-	"go-operator-service/logger"
+	// "go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
-	"go-operator-service/workers"
+	"go-operator-service/stream"
 	"net/http"
 	"sync"
 	"time"
@@ -30,9 +31,10 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 
         // response headerlarini sozlash
         rw := c.Response().Writer
-        c.Response().Header().Set(echo.HeaderContentType, "application/x-ndjson")
-        c.Response().Header().Set("Transfer-Encoding", "chunked")
-        c.Response().WriteHeader(http.StatusOK)
+        c.Response().Header().Set("Content-Type", "text/event-stream")
+		c.Response().Header().Set("Cache-Control", "no-cache")
+		c.Response().Header().Set("Connection", "keep-alive")
+		c.Response().Header().Set("Access-Control-Allow-Origin", "*")
 
         flusher, ok := rw.(http.Flusher)
         if !ok {
@@ -47,23 +49,23 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
             workerCount := min(len(jobs), 10) // misol uchun parallel 10
             for i := 0; i < workerCount; i++ {
                 wg.Add(1)
-                go workers.Worker(ctx, jobsChanFromSlice(jobs), results, &wg, hotelService)
+                go stream.StreamWorker(ctx, jobsChanFromSlice(jobs), results, &wg, hotelService)
             }
             wg.Wait()
             close(results)
         }()
 
         // results oqimini NDJSON formatida yuborish
-        enc := json.NewEncoder(rw)
+        // enc := json.NewEncoder(rw)
         for res := range results {
-            // har bir res ni NDJSON qatoriga aylantirish
-            if err := enc.Encode(res); err != nil {
-                // yozishda xato bo'lsa, log va break
-                logger.Log.Error().Err(err).Msg("failed to encode stream result")
-                break
-            }
-            flusher.Flush()
-            // optional: kichik kechikish yoki rate limit
+            jsonData, err := json.Marshal(res)
+			if err != nil {
+				continue
+			}
+
+			fmt.Fprintf(rw, "data: %s\n\n", jsonData)
+
+			flusher.Flush()
             time.Sleep(5 * time.Millisecond)
         }
 
