@@ -68,7 +68,7 @@ func StreamFetchPage(
 		testURL := os.Getenv("TEST_URL")
 		logger.Log.Info().
 			Str("handler", "search-tours").
-			Str("url", job.Url).
+			Str("url", url).
 			Msg("Starting test job")
 		req, err = http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
 		if err != nil {

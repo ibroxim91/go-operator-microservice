@@ -30,7 +30,7 @@ var (
 
 func GetHotelData(db *sql.DB, hotelID int, hotelName, operator string, countryID int, mealPlan string) (*Hotel, bool, error) {
 	// Avval barcha hotellar cache ga yuklanadi, so‘ng hotel nomi bo‘yicha qidiriladi
-	log.Println("Db query count ", dbQueryCounter)
+	
 	if err := preloadHotelsCache(db); err != nil {
 		log.Println("Error loding hotels cache ", err)
 		return nil, false, err

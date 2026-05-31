@@ -271,7 +271,9 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 				Msg("error fetching town mappings by region")
 			return nil, false, nil
 		}
-		
+		log.Println()
+		log.Println("townMappings for operator ",operatorName, " = ", len(townMappings))
+		log.Println()
 		if len(townMappings) > 0 {
 			operatorTownIDs := make([]string, 0, len(townMappings))
 			for _, mapping := range townMappings {

@@ -50,14 +50,14 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	start := time.Now()
+	//start := time.Now()
 	resp, err := client.Do(req)
 
-	duration := time.Since(start)
-	logger.Log.Info().
-		Str("operator", job.Operator).
-		Dur("duration", duration).
-		Msg("operator request finished")
+	//duration := time.Since(start)
+	//logger.Log.Info().
+	//	Str("operator", job.Operator).
+	//	Dur("duration", duration).
+	//	Msg("operator request finished")
 
 	if err != nil {
 		logger.Log.Error().
@@ -102,12 +102,12 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 		formatPrices = append(formatPrices, ticket)
 	}
 
-	logger.Log.Info().
-		Str("handler", "search-tours").
-		Msg(fmt.Sprintf("len formatPrices for opertor %s: %d", job.Operator, len(formatPrices)))
-	logger.Log.Info().
-		Str("handler", "search-tours").
-		Msg(fmt.Sprintf("parsed.SearchTour_PRICES.Pager.Total for opertor %s: %d", job.Operator, parsed.SearchTour_PRICES.Pager.Total))
+	//logger.Log.Info().
+	//	Str("handler", "search-tours").
+	//	Msg(fmt.Sprintf("len formatPrices for opertor %s: %d", job.Operator, len(formatPrices)))
+	//logger.Log.Info().
+	//	Str("handler", "search-tours").
+	//	Msg(fmt.Sprintf("parsed.SearchTour_PRICES.Pager.Total for opertor %s: %d", job.Operator, parsed.SearchTour_PRICES.Pager.Total))
 	// Agar 100 tadan kam bo‘lsa → boshqa pagelarni ham olish
 	if len(formatPrices) < 500 && parsed.SearchTour_PRICES.Pager.Total > 1 {
 		ch := make(chan []*models.Ticket)
