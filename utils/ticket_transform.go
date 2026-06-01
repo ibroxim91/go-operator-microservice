@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go-operator-service/models"
 	"go-operator-service/services"
+	"log"
 	"math"
 	"os"
 	"strconv"
@@ -44,7 +45,8 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	slug = strings.ReplaceAll(slug, "/", "-")
 	slug += fmt.Sprintf("-%d", price.StateKey)
 	// if os.Getenv("TEST") == "true" {
-	countrImageUrl = fmt.Sprintf("%s%s", os.Getenv("MEDIA_URL"), countrImageUrl)
+	countrImageUrl = buildCountryImageURL(countrImageUrl)
+	log.Printf("Built country image URL: %s", countrImageUrl)
 	// }
 	ticket := &models.Ticket{
 		TourOperatorID:    price.ID,
@@ -128,6 +130,24 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	}
 
 	return ticket
+}
+
+
+func buildCountryImageURL(countrImageUrl string) string {
+    // Agar countrImageUrl "country-images" bilan boshlasa, oldiga /resources/media/ qo'shamiz
+    if strings.HasPrefix(countrImageUrl, "country-images") {
+        countrImageUrl = "/resources/media/" + countrImageUrl
+    }
+
+    // Agar countrImageUrl boshida slash bo'lmasa, qo'shamiz (MEDIA_URL bilan birlashtirish uchun)
+    if !strings.HasPrefix(countrImageUrl, "/") {
+        countrImageUrl = "/" + countrImageUrl
+    }
+
+    // MEDIA_URL oxiridagi slashni olib tashlab, keyin birlashtiramiz
+    mediaURL := strings.TrimRight(os.Getenv("MEDIA_URL"), "/")
+
+    return fmt.Sprintf("%s%s", mediaURL, countrImageUrl)
 }
 
 func GetHotel(price *models.Price, hotelName string) []models.TicketHotel {
