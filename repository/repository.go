@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"strings"
 	"sync"
@@ -209,17 +210,29 @@ func FindHotelByName(countryID int, hotelName string) (*Hotel, error) {
 	var bestHotel *Hotel
 	bestScore := 0.0
 
-	for _, h := range hotels {
+	for _, hotel := range hotels {
 
-		hName := normalize(h.Name)
+		hotelNormalized := normalize(hotel.Name)
 
-		score := similarity(target, hName)
+		// Contains tekshirish
+		if strings.Contains(target, hotelNormalized) ||
+			strings.Contains(hotelNormalized, target) {
+
+			fmt.Printf("FOUND BY CONTAINS: %s\n", hotel.Name)
+			return &hotel, nil
+		}
+
+		score := similarity(target, hotelNormalized)
+
+		fmt.Printf(
+			"%-30s -> %.2f%%\n",
+			hotel.Name,
+			score,
+		)
 
 		if score > bestScore {
 			bestScore = score
-
-			tmp := h
-			bestHotel = &tmp
+			bestHotel = &hotel
 		}
 	}
 
