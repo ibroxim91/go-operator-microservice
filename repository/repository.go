@@ -133,10 +133,26 @@ func normalize(s string) string {
 
 	s = replacer.Replace(s)
 
-	// double spaces remove
-	s = strings.Join(strings.Fields(s), " ")
+	stopWords := map[string]bool{
+		"hotel":      true,
+		"resort":     true,
+		"spa":        true,
+		"apartments": true,
+		"apartment":  true,
+		"residence":  true,
+	}
 
-	return s
+	words := strings.Fields(s)
+
+	var filtered []string
+
+	for _, w := range words {
+		if !stopWords[w] {
+			filtered = append(filtered, w)
+		}
+	}
+
+	return strings.Join(filtered, " ")
 }
 
 func similarity(a, b string) float64 {
