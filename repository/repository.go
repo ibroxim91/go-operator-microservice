@@ -244,7 +244,7 @@ func FindHotelByName(countryID int, hotelName string) (*Hotel, error) {
 	// )
 
 	// threshold
-	if bestHotel != nil && bestScore >= 70 {
+	if bestHotel != nil && bestScore >= 50 {
 		return bestHotel, nil
 	}
 
