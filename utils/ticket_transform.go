@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go-operator-service/models"
 	"go-operator-service/services"
-	"log"
 	"math"
 	"os"
 	"strconv"
@@ -46,7 +45,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	slug += fmt.Sprintf("-%d", price.StateKey)
 	// if os.Getenv("TEST") == "true" {
 	countrImageUrl = buildCountryImageURL(countrImageUrl)
-	log.Printf("Built country image URL: %s", countrImageUrl)
+
 	// }
 	ticket := &models.Ticket{
 		TourOperatorID:    price.ID,
