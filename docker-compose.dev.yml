@@ -19,12 +19,12 @@ services:
     ports:
       - "8088:8088"
     restart: always
-  redis:
-    networks:
-      - backend_simple_travel
-    restart: always
+  # redis:
+  #   networks:
+  #     - backend_simple_travel
+  #   restart: always
 
-    image: redis    
+  #   image: redis    
   loki:
     image: grafana/loki:2.9.0
     container_name: loki

@@ -47,6 +47,23 @@ func NewRedisCache() (*RedisCache, error) {
 	return &RedisCache{client: client}, nil
 }
 
+func (r *RedisCache) GetHomeCache(ctx context.Context) (*models.AsyncSamoResult, error) {
+	value, err := r.client.Get(ctx, "home_tours").Result()
+
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var resp models.AsyncSamoResult
+	if err := json.Unmarshal([]byte(value), &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 func (r *RedisCache) GetCachedResponse(ctx context.Context, key string) (*models.ResultResponse, error) {
 	value, err := r.client.Get(ctx, key).Result()
 	if err != nil {
@@ -96,31 +113,31 @@ func (r *RedisCache) SetCachedAsyncResult(ctx context.Context, key string, resp 
 }
 
 func (r *RedisCache) GetCachedStreamResult(
-    ctx context.Context,
-    key string,
+	ctx context.Context,
+	key string,
 ) (*models.StreamCacheResult, error) {
 
-    value, err := r.client.Get(ctx, key).Result()
+	value, err := r.client.Get(ctx, key).Result()
 
-    if err != nil {
+	if err != nil {
 
-        if err == redis.Nil {
-            return nil, nil
-        }
+		if err == redis.Nil {
+			return nil, nil
+		}
 
-        return nil, err
-    }
+		return nil, err
+	}
 
-    var result models.StreamCacheResult
+	var result models.StreamCacheResult
 
-    if err := json.Unmarshal(
-        []byte(value),
-        &result,
-    ); err != nil {
-        return nil, err
-    }
+	if err := json.Unmarshal(
+		[]byte(value),
+		&result,
+	); err != nil {
+		return nil, err
+	}
 
-    return &result, nil
+	return &result, nil
 }
 
 func (r *RedisCache) GetOrSetCachedResponse(ctx context.Context, key string, ttl time.Duration, fetch func() (*models.ResultResponse, error)) (*models.ResultResponse, error) {
@@ -167,26 +184,25 @@ func GenerateCacheKey(params map[string]string) string {
 }
 
 func (r *RedisCache) SetCachedStreamResult(
-    ctx context.Context,
-    key string,
-    result *models.StreamCacheResult,
-    ttl time.Duration,
+	ctx context.Context,
+	key string,
+	result *models.StreamCacheResult,
+	ttl time.Duration,
 ) error {
 
-    payload, err := json.Marshal(result)
+	payload, err := json.Marshal(result)
 
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 
-    return r.client.Set(
-        ctx,
-        key,
-        payload,
-        ttl,
-    ).Err()
+	return r.client.Set(
+		ctx,
+		key,
+		payload,
+		ttl,
+	).Err()
 }
-
 
 func BuildStreamCacheKey(
 	params map[string]string,

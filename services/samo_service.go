@@ -2,7 +2,6 @@ package services
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -121,17 +120,17 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 			}
 		}
 	}
-	log.Println("CountryId ", countryID, " | Destination ", destination, " | Town ", town, " | Departure ", departure)
+	log.Println("CountryId ", countryID, " | Destination ", destination, " | Town ", town, " | Departure ", departure, " | From cache ", fromCache)
 
 	if departure == "" || countryID == "" {
-		if destination != "" || fromCache {
-			return map[string]string{}, fromCache, nil
-		}
-		return nil, false, errors.New("missing required departure or country_id")
+
+		return map[string]string{}, true, nil
+
+		// return nil, false, errors.New("missing required departure or country_id")
 	}
 
 	today := time.Now()
-	checkinBeg := today.Add(7 * 24 * time.Hour).Format("20060102")
+	checkinBeg := today.Add(3 * 24 * time.Hour).Format("20060102")
 	checkinEnd := today.Add(20 * 24 * time.Hour).Format("20060102")
 
 	params := map[string]string{
@@ -272,7 +271,7 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 			return nil, false, nil
 		}
 		log.Println()
-		log.Println("townMappings for operator ",operatorName, " = ", len(townMappings))
+		log.Println("townMappings for operator ", operatorName, " = ", len(townMappings))
 		log.Println()
 		if len(townMappings) > 0 {
 			operatorTownIDs := make([]string, 0, len(townMappings))
@@ -318,7 +317,7 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 	var urls []models.Request
 	configs := s.getServiceConfigs()
 	queryOperator := strings.TrimSpace(params["OPERATOR"])
-	
+
 	currentUsdCourse := parsePositiveFloat(params["current_usd_course"], 0)
 	if currentUsdCourse <= 0 {
 		fetchedRate, err := s.GetCurrentUsdCourse()

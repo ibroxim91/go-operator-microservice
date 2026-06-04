@@ -48,6 +48,20 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 		}
 		if len(samoParams) == 0 {
 			if fromCache {
+
+				homeCache , err := cacheClient.GetHomeCache(ctx)
+
+				if err != nil {
+					logger.Log.Error().
+						Err(err).
+						Str("handler", "async-samo/tickets").
+						Msg("failed to get home cache")
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to get home cache"})
+				}
+				if homeCache != nil {
+					return c.JSON(http.StatusOK, homeCache)
+				}
+
 				return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(1))
 			}
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request parameters"})
