@@ -30,7 +30,7 @@ var (
 
 func GetHotelData(db *sql.DB, hotelID int, hotelName, operator string, countryID int, mealPlan string) (*Hotel, bool, error) {
 	// Avval barcha hotellar cache ga yuklanadi, so‘ng hotel nomi bo‘yicha qidiriladi
-	
+
 	if err := preloadHotelsCache(db); err != nil {
 		log.Println("Error loding hotels cache ", err)
 		return nil, false, err
@@ -217,13 +217,10 @@ func FindHotelByName(countryID int, hotelName string) (*Hotel, error) {
 		if strings.Contains(target, hotelNormalized) ||
 			strings.Contains(hotelNormalized, target) {
 
-	
 			return &hotel, nil
 		}
 
 		score := similarity(target, hotelNormalized)
-
-		
 
 		if score > bestScore {
 			bestScore = score
@@ -239,7 +236,7 @@ func FindHotelByName(countryID int, hotelName string) (*Hotel, error) {
 	// )
 
 	// threshold
-	if bestHotel != nil && bestScore >= 50 {
+	if bestHotel != nil && bestScore >= 70 {
 		return bestHotel, nil
 	}
 

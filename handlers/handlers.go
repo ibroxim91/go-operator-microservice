@@ -30,7 +30,7 @@ func makeSearchToursHandler(ctx context.Context, hotelService *services.HotelSer
 		if err := c.Bind(&jobs); err != nil {
 			logger.Log.Error().
 				Err(err).
-					Str("handler", "search-tours").
+				Str("handler", "search-tours").
 				Msg("request bind failed")
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
@@ -46,10 +46,11 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
+
 		if len(samoParams) == 0 {
 			if fromCache {
 
-				homeCache , err := cacheClient.GetHomeCache(ctx)
+				homeCache, err := cacheClient.GetHomeCache(ctx)
 
 				if err != nil {
 					logger.Log.Error().

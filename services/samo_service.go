@@ -120,10 +120,24 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 			}
 		}
 	}
+	departure_name := ""
+	if departure != "" {
+		departureID := parsePositiveInt(departure)
+		if departureID > 0 {
+			regionInfo, err := repository.GetRegionByID(s.DB, departureID)
+			if err != nil && err != sql.ErrNoRows {
+				if regionInfo != nil {
+					departure_name = regionInfo.NameRu
+				}
+			}
+		
+		}
+	}
+	
 	log.Println("CountryId ", countryID, " | Destination ", destination, " | Town ", town, " | Departure ", departure, " | From cache ", fromCache)
 
 	if departure == "" || countryID == "" {
-
+		log.Println("Missing required departure or country_id parameters - departure: ", departure, " | country_id: ", countryID)
 		return map[string]string{}, true, nil
 
 		// return nil, false, errors.New("missing required departure or country_id")
@@ -152,6 +166,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		"TOWNFROMINC":     departure,
 		"STATEINC":        countryID,
 		"destination":     destination,
+		"departure_name":     departure_name,
 		"country_name":    countryName,
 		"region__name":    regionName,
 		"region__name_uz": regionNameUz,
@@ -213,6 +228,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	return params, false, nil
 }
 
+
 func (s *SamoService) MapParams(mappedParams map[string]string, operatorName string) (map[string]string, bool, error) {
 	stateID, _ := strconv.Atoi(mappedParams["STATEINC"])
 	townFromID, _ := strconv.Atoi(mappedParams["TOWNFROMINC"])
@@ -270,9 +286,7 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 				Msg("error fetching town mappings by region")
 			return nil, false, nil
 		}
-		log.Println()
-		log.Println("townMappings for operator ", operatorName, " = ", len(townMappings))
-		log.Println()
+		
 		if len(townMappings) > 0 {
 			operatorTownIDs := make([]string, 0, len(townMappings))
 			for _, mapping := range townMappings {
@@ -409,7 +423,7 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 		urls = append(urls, models.Request{
 			Url:              fullURL,
 			Operator:         service.Name,
-			Departure:        mapped["departure"],
+			Departure:        mapped["departure_name"],
 			DestinationID:    destinationID,
 			DepartureID:      departureID,
 			CountryID:        countryID,

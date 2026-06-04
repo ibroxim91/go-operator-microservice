@@ -69,7 +69,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		DepartureTime:     price.CheckIn,
 		Departure: models.DepartureInfo{
 			ID:      price.TownFromKey,
-			Name:    departure,
+			Name:    "Ташкент", // price.TownFrom, --- IGNORE ---
 			Country: "Uzbekistan",
 		},
 		PassengerCount: price.Adult + price.Child,
