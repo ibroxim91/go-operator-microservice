@@ -54,6 +54,11 @@ func (s *SamoService) getServiceConfigs() []SamoServiceConfig {
 			BaseURL:    os.Getenv("MALVA_TOUR_BASE_URL"),
 			OAuthToken: os.Getenv("MALVA_TOUR_OAUTH_TOKEN"),
 		},
+		{
+			Name:       "aqua_travelplus",
+			BaseURL:    os.Getenv("AQUA_TRAVELPLUS_BASE_URL"),
+			OAuthToken: os.Getenv("AQUA_TRAVELPLUS_OAUTH_TOKEN"),
+		},
 	}
 	return services
 
@@ -72,8 +77,8 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	countryID := getTrimmed("country_id", "")
 	fromCache := strings.EqualFold(getTrimmed("from_cache", "false"), "true")
 	town := getTrimmed("town", "")
-	_ = formatDate(getTrimmed("dateFrom", ""))
-	_ = formatDate(getTrimmed("dateTo", ""))
+	dateFrom := formatDate(getTrimmed("dateFrom", ""))
+	dateTo := formatDate(getTrimmed("dateTo", ""))
 	adults := getTrimmed("adults", "1")
 	children := getTrimmed("children", "0")
 	operator := getTrimmed("operator", "")
@@ -83,8 +88,8 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	regionName := ""
 	regionNameUz := ""
 	regionID := ""
-	minDepartureDate := formatDate(getTrimmed("min_departure_date", ""))
-	maxDepartureDate := formatDate(getTrimmed("max_departure_date", ""))
+	// minDepartureDate := formatDate(getTrimmed("min_departure_date", ""))
+	// maxDepartureDate := formatDate(getTrimmed("max_departure_date", ""))
 	minPrice := getTrimmed("min_price", "")
 	maxPrice := getTrimmed("max_price", "")
 	hotelRating := getTrimmed("hotel_rating", "")
@@ -130,10 +135,10 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 					departure_name = regionInfo.NameRu
 				}
 			}
-		
+
 		}
 	}
-	
+
 	log.Println("CountryId ", countryID, " | Destination ", destination, " | Town ", town, " | Departure ", departure, " | From cache ", fromCache)
 
 	if departure == "" || countryID == "" {
@@ -159,14 +164,14 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		"CURRENCY":        "2",
 		"CHECKIN_BEG":     checkinBeg,
 		"CHECKIN_END":     checkinEnd,
-		"NIGHTS_FROM":     "3",
+		"NIGHTS_FROM":     "1",
 		"NIGHTS_LIST":     "",
-		"NIGHTS_TILL":     "14",
+		"NIGHTS_TILL":     "",
 		"SORT":            "ASC",
 		"TOWNFROMINC":     departure,
 		"STATEINC":        countryID,
 		"destination":     destination,
-		"departure_name":     departure_name,
+		"departure_name":  departure_name,
 		"country_name":    countryName,
 		"region__name":    regionName,
 		"region__name_uz": regionNameUz,
@@ -179,11 +184,11 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		params["current_usd_course"] = currentUsdCourse
 	}
 
-	if minDepartureDate != "" {
-		params["CHECKIN_BEG"] = minDepartureDate
+	if dateFrom != "" {
+		params["CHECKIN_BEG"] = dateFrom 
 	}
-	if maxDepartureDate != "" {
-		params["CHECKIN_END"] = maxDepartureDate
+	if dateTo != "" {
+		params["CHECKIN_END"] = dateTo
 	}
 	if town != "" {
 		params["TOWNS"] = town
@@ -201,10 +206,10 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		params["STARS"] = normalizeStars(rating)
 	}
 	if durationDays != "" {
-		params["NIGHTS_LIST"] = durationDays
+		params["NIGHTS_TILL"] = durationDays
 	}
 	if duration != "" {
-		params["NIGHTS_LIST"] = duration
+		params["NIGHTS_TILL"] = duration
 	}
 	if mealPlan != "" {
 		params["MEALS"] = mealPlan
@@ -221,7 +226,8 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	if mostExpensive {
 		params["SORT"] = "DESC"
 	}
-	if params["NIGHTS_LIST"] == "" {
+	if params["NIGHTS_TILL"] == "" {
+		params["NIGHTS_FROM"] = ""
 		params["NIGHTS_LIST"] = "2,3,4,5,6,7"
 	}
 
@@ -286,7 +292,7 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 				Msg("error fetching town mappings by region")
 			return nil, false, nil
 		}
-		
+
 		if len(townMappings) > 0 {
 			operatorTownIDs := make([]string, 0, len(townMappings))
 			for _, mapping := range townMappings {

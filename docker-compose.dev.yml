@@ -6,8 +6,8 @@ networks:
 
 services:
   echo:
-    labels:
-      logging: "promtail"
+    # labels:
+    #   logging: "promtail"
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -25,25 +25,27 @@ services:
   #   restart: always
 
   #   image: redis    
-  loki:
-    image: grafana/loki:2.9.0
-    container_name: loki
-    ports:
-      - "3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml
-    networks:
-      - backend_simple_travel
+  # loki:
+  #   labels:
+  #     driver: "none"
+  #   image: grafana/loki:2.9.0
+  #   container_name: loki
+  #   ports:
+  #     - "3100:3100"
+  #   command: -config.file=/etc/loki/local-config.yaml
+  #   networks:
+  #     - backend_simple_travel
 
-  promtail:
-    image: grafana/promtail:2.9.0
-    container_name: promtail
-    volumes:
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - ./promtail-config.yml:/etc/promtail/config.yml
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: -config.file=/etc/promtail/config.yml
-    networks:
-      - backend_simple_travel
+  # promtail:
+  #   image: grafana/promtail:2.9.0
+  #   container_name: promtail
+  #   volumes:
+  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  #     - ./promtail-config.yml:/etc/promtail/config.yml
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: -config.file=/etc/promtail/config.yml
+  #   networks:
+  #     - backend_simple_travel
 
   grafana:
     image: grafana/grafana:10.1.0

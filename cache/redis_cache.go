@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"os"
 	"sort"
 	"strconv"
@@ -178,7 +179,7 @@ func GenerateCacheKey(params map[string]string) string {
 		builder.WriteString(params[key])
 		builder.WriteString("&")
 	}
-
+	log.Println("builder.String() ", builder.String())
 	hash := sha256.Sum256([]byte(builder.String()))
 	return "async_samo:" + hex.EncodeToString(hash[:])
 }

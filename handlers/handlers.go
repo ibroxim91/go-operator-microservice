@@ -109,7 +109,7 @@ func loadAsyncSamoTicketsResult(ctx context.Context, cacheClient *cache.RedisCac
 	if err != nil {
 		return nil, err
 	}
-	log.Println("samoParams ", samoParams)
+	log.Println("cachedResult ", bool(cachedResult != nil))
 	if cachedResult != nil {
 		// mark all returned tickets as from cache
 		fullTickets := cachedResult.Data.Results.Tickets
