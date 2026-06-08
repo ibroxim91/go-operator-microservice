@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"go-operator-service/cache"
 	"go-operator-service/repository"
-	"log"
+
 	"strings"
 	"sync"
 
