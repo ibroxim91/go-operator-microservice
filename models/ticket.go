@@ -35,6 +35,7 @@ type Ticket struct {
     Currency       string         `json:"currency"`
     HotelAvailability   string    `json:"hotelAvailability"`
     HotelPhotoCount     int        `json:"hotel_photo_count"`
+    HotelPhotos     []HotelPhotos  `json:"hotel_photos"`
     Departure      DepartureInfo  `json:"departure"`
     PassengerCount int            `json:"passenger_count"`
     Rating         float64        `json:"rating"`
@@ -74,6 +75,9 @@ type Ticket struct {
 }
 
 
+type HotelPhotos struct {
+    Image string `json:"image"`
+}
 
 type IncludedService struct {
     Image string `json:"image"`

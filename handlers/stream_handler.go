@@ -53,6 +53,7 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
+		log.Println("samoParams stram ", samoParams)
 		cacheKey := cache.BuildStreamCacheKey(samoParams)
 		// response headerlarini sozlash
 		rw, flusher, err := setStreamHeaders(c)
