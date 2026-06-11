@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -29,6 +31,14 @@ func main() {
 	DBPassword := os.Getenv("DBPassword")
 	DBName := os.Getenv("DBName")
 	logger.Init()
+	log.Println(
+    "NumCPU:",
+    runtime.NumCPU(),
+)
+log.Println(
+    "GOMAXPROCS:",
+    runtime.GOMAXPROCS(0),
+)
 	conn, err := db.ConnectPostgres(DBHost, DBPort, DBUser, DBPassword, DBName)
 	if err != nil {
 		logger.Log.Fatal().

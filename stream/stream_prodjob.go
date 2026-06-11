@@ -10,6 +10,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+
+	"go-operator-service/logger"
 )
 
 /// Production rejimdagi so‘rovlar
@@ -19,6 +21,10 @@ func StreamHandleProdJob(
     results chan<- models.Result,
     hotelService *services.HotelService,
 ) {
+    logger.Log.Info().
+		Str("handler", "search-tours").
+		Str("url", job.Url).
+		Msg("Starting production job")
     req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
     if err != nil {
         results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}

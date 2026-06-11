@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	
+
+	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/utils"
@@ -35,7 +36,10 @@ func StreamHandleTestJob(
     results chan<- models.Result,
     hotelService *services.HotelService,
 ) {
-
+    logger.Log.Info().
+		Str("handler", "search-tours").
+		Str("url", job.Url).
+		Msg("Starting test job")
     payload := map[string]string{
         "url": job.Url,
     }
