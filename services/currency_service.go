@@ -1,69 +1,73 @@
 package services
 
 import (
-	// "encoding/json"
-	// "errors"
-	// "net/http"
-	// "strconv"
-	"sync"
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
 	"time"
+
+	"go-operator-service/cache"
 )
 
-const CBURL = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
+const (
+	CBURL             = "https://cbu.uz/uz/arkhiv-kursov-valyut/json/"
+	usdRateCacheTTL   = 14 * time.Hour
+)
 
-type CurrencyService struct{}
+type CurrencyService struct {
+	cache *cache.RedisCache
+}
 
 type currencyRate struct {
 	Ccy  string `json:"Ccy"`
 	Rate string `json:"Rate"`
 }
 
-var (
-	currencyCacheMu     sync.Mutex
-	currencyCacheRate   float64
-	currencyCacheExpiry time.Time
-)
+func NewCurrencyService(cacheClient *cache.RedisCache) *CurrencyService {
+	return &CurrencyService{cache: cacheClient}
+}
 
-func (CurrencyService) GetUsdRate() (float64, error) {
-	return 11970.68, nil // doimiy kurs qaytarish
-	// currencyCacheMu.Lock()
-	// if time.Now().Before(currencyCacheExpiry) && currencyCacheRate > 0 {
-	// 	rate := currencyCacheRate
-	// 	currencyCacheMu.Unlock()
-	// 	return rate, nil
-	// }
-	// currencyCacheMu.Unlock()
+func (s *CurrencyService) GetUsdRate(ctx context.Context) (float64, error) {
+	if s.cache != nil {
+		cachedRate, found, err := s.cache.GetUsdRate(ctx)
+		if err == nil && found && cachedRate > 0 {
+			return cachedRate, nil
+		}
+	}
 
-	// resp, err := http.Get(CBURL)
-	// if err != nil {
-	// 	return 0, errors.New("API so'rovi xatosi: " + err.Error())
-	// }
-	// defer resp.Body.Close()
+	resp, err := http.Get(CBURL)
+	if err != nil {
+		return 0, errors.New("API so'rovi xatosi: " + err.Error())
+	}
+	defer resp.Body.Close()
 
-	// if resp.StatusCode != http.StatusOK {
-	// 	return 0, errors.New("API so'rovi xatosi: status code " + strconv.Itoa(resp.StatusCode))
-	// }
+	if resp.StatusCode != http.StatusOK {
+		return 0, errors.New("API so'rovi xatosi: status code " + strconv.Itoa(resp.StatusCode))
+	}
 
-	// var rates []currencyRate
-	// if err := json.NewDecoder(resp.Body).Decode(&rates); err != nil {
-	// 	return 0, errors.New("JSON dekoding xatosi: " + err.Error())
-	// }
+	var rates []currencyRate
+	if err := json.NewDecoder(resp.Body).Decode(&rates); err != nil {
+		return 0, errors.New("JSON dekoding xatosi: " + err.Error())
+	}
 
-	// for _, item := range rates {
-	// 	if item.Ccy == "USD" {
-	// 		rate, err := strconv.ParseFloat(item.Rate, 64)
-	// 		if err != nil {
-	// 			return 0, errors.New("USD kursini pars qilish xatosi: " + err.Error())
-	// 		}
+	for _, item := range rates {
+		if item.Ccy != "USD" {
+			continue
+		}
 
-	// 		currencyCacheMu.Lock()
-	// 		currencyCacheRate = rate
-	// 		currencyCacheExpiry = time.Now().Add(24 * time.Hour)
-	// 		currencyCacheMu.Unlock()
+		rate, err := strconv.ParseFloat(item.Rate, 64)
+		if err != nil {
+			return 0, errors.New("USD kursini pars qilish xatosi: " + err.Error())
+		}
 
-	// 		return rate, nil
-	// 	}
-	// }
+		if s.cache != nil {
+			_ = s.cache.SetUsdRate(ctx, rate, usdRateCacheTTL)
+		}
 
-	// return 0, errors.New("USD kursi topilmadi")
+		return rate, nil
+	}
+
+	return 0, errors.New("USD kursi topilmadi")
 }

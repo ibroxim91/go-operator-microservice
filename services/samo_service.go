@@ -1,9 +1,11 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"math"
 	"net/url"
 	"os"
 	"sort"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"go-operator-service/cache"
 	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/repository"
@@ -19,7 +22,8 @@ import (
 )
 
 type SamoService struct {
-	DB *sql.DB
+	DB              *sql.DB
+	currencyService *CurrencyService
 }
 
 type SamoServiceConfig struct {
@@ -28,8 +32,11 @@ type SamoServiceConfig struct {
 	OAuthToken string
 }
 
-func NewSamoService(db *sql.DB) *SamoService {
-	return &SamoService{DB: db}
+func NewSamoService(db *sql.DB, cacheClient *cache.RedisCache) *SamoService {
+	return &SamoService{
+		DB:              db,
+		currencyService: NewCurrencyService(cacheClient),
+	}
 }
 
 func (s *SamoService) getServiceConfigs() []SamoServiceConfig {
@@ -164,7 +171,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		"CURRENCY":        "2",
 		"CHECKIN_BEG":     checkinBeg,
 		"CHECKIN_END":     checkinEnd,
-		"NIGHTS_FROM":     "1",
+		"NIGHTS_FROM":     "",
 		"NIGHTS_LIST":     "",
 		"NIGHTS_TILL":     "",
 		"SORT":            "ASC",
@@ -185,7 +192,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	}
 
 	if dateFrom != "" {
-		params["CHECKIN_BEG"] = dateFrom 
+		params["CHECKIN_BEG"] = dateFrom
 	}
 	if dateTo != "" {
 		params["CHECKIN_END"] = dateTo
@@ -194,10 +201,24 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		params["TOWNS"] = town
 	}
 	if minPrice != "" {
-		params["COSTMIN"] = minPrice
+		if usdMin, err := s.convertUzsPriceToUsd(minPrice); err != nil {
+			logger.Log.Warn().
+				Err(err).
+				Str("min_price", minPrice).
+				Msg("failed to convert min_price to USD for COSTMIN")
+		} else {
+			params["COSTMIN"] = usdMin
+		}
 	}
 	if maxPrice != "" {
-		params["COSTMAX"] = maxPrice
+		if usdMax, err := s.convertUzsPriceToUsd(maxPrice); err != nil {
+			logger.Log.Warn().
+				Err(err).
+				Str("max_price", maxPrice).
+				Msg("failed to convert max_price to USD for COSTMAX")
+		} else {
+			params["COSTMAX"] = usdMax
+		}
 	}
 	if hotelRating != "" {
 		params["STARS"] = normalizeStars(hotelRating)
@@ -206,10 +227,10 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		params["STARS"] = normalizeStars(rating)
 	}
 	if durationDays != "" {
-		params["NIGHTS_TILL"] = durationDays
+		params["NIGHTS_LIST"] = durationDays
 	}
 	if duration != "" {
-		params["NIGHTS_TILL"] = duration
+		params["NIGHTS_LIST"] = duration
 	}
 	if mealPlan != "" {
 		params["MEALS"] = mealPlan
@@ -226,14 +247,13 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	if mostExpensive {
 		params["SORT"] = "DESC"
 	}
-	if params["NIGHTS_TILL"] == "" {
+	if params["NIGHTS_LIST"] == "" {
 		params["NIGHTS_FROM"] = ""
 		params["NIGHTS_LIST"] = "2,3,4,5,6,7"
 	}
 
 	return params, false, nil
 }
-
 
 func (s *SamoService) MapParams(mappedParams map[string]string, operatorName string) (map[string]string, bool, error) {
 	stateID, _ := strconv.Atoi(mappedParams["STATEINC"])
@@ -282,8 +302,9 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 			return nil, false, err
 		}
 		mappedParams["TOWNS"] = strconv.Itoa(townMapping.OperatorTownID)
-	} else if townID == 0 && townFromID > 0 {
+	} else if townFromID > 0 {
 		townMappings, err := repository.GetTownMappingsByRegion(s.DB, operatorName, DestinationID)
+		log.Println("townMappings for operator: ", operatorName, " regionID: ", DestinationID, " townMappings: ", townMappings)
 		if err != nil {
 			logger.Log.Error().
 				Err(err).
@@ -300,6 +321,10 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 			}
 			mappedParams["TOWNS"] = strings.Join(operatorTownIDs, ",")
 		}
+		// else{
+		// 	return nil, false, nil
+
+		// }
 	}
 
 	if mealID > 0 {
@@ -330,7 +355,28 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 }
 
 func (s *SamoService) GetCurrentUsdCourse() (float64, error) {
-	return CurrencyService{}.GetUsdRate()
+	return s.currencyService.GetUsdRate(context.Background())
+}
+
+func (s *SamoService) convertUzsPriceToUsd(uzsPrice string) (string, error) {
+	uzs, err := strconv.ParseFloat(strings.TrimSpace(uzsPrice), 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid uzs price: %w", err)
+	}
+	if uzs <= 0 {
+		return "", fmt.Errorf("uzs price must be positive")
+	}
+
+	rate, err := s.GetCurrentUsdCourse()
+	if err != nil {
+		return "", fmt.Errorf("failed to get usd rate: %w", err)
+	}
+	if rate <= 0 {
+		return "", fmt.Errorf("invalid usd rate: %f", rate)
+	}
+
+	usd := uzs / rate
+	return strconv.Itoa(int(math.Round(usd))), nil
 }
 
 func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, error) {

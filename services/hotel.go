@@ -2,9 +2,7 @@ package services
 
 import (
 	"database/sql"
-	"fmt"
 	"go-operator-service/cache"
-	"go-operator-service/repository"
 
 	"strings"
 	"sync"
@@ -25,7 +23,6 @@ var (
 	hotelsCache    map[int][]cache.Hotel
 	cacheErr       error
 	cacheH        sync.RWMutex
-	mappingcacheH sync.RWMutex
 	photoCache     = map[int]*HotelPhoto{}
 	photoMu        sync.RWMutex
 	cacheMu        sync.RWMutex
@@ -50,6 +47,10 @@ func GetHotelData(
 		return nil, false, err
 	}
 
+	if err := PreloadHotelMappings(db); err != nil {
+		return nil, false, err
+	}
+
 	// 1. mappingdan qidir
 	hotel, err := FindHotelByMapping(
 		operator,
@@ -70,13 +71,12 @@ func GetHotelData(
 		return nil, false, err
 	}
 
-	// 3. mapping saqlash
-	go repository.SaveHotelMapping(
-		db,
-		operator,
-		hotelID,
-		hotel.ID,
-	)
+	// 3. mapping saqlash (background worker queue orqali)
+	EnqueueHotelMapping(HotelMappingJob{
+		Operator:        operator,
+		OperatorHotelID: hotelID,
+		HotelID:         hotel.ID,
+	})
 
 	return hotel, false, nil
 }
@@ -88,15 +88,7 @@ func FindHotelByMapping(
 	operatorHotelID int,
 ) (*cache.Hotel, error) {
 
-	key := fmt.Sprintf(
-		"%s:%d",
-		operator,
-		operatorHotelID,
-	)
-
-	mappingcacheH.RLock()
-	hotelID, ok := cache.HotelMappingCache[key]
-	mappingcacheH.RUnlock()
+	hotelID, ok := cache.GetMappedHotelID(operator, operatorHotelID)
 
 	if !ok {
 		return nil, sql.ErrNoRows
@@ -300,7 +292,7 @@ func PreloadHotelMappings(db *sql.DB) error {
             if err := rows.Scan(&operator, &operatorHotelID, &hotelID); err != nil {
                 continue
             }
-            key := fmt.Sprintf("%s:%d", operator, operatorHotelID)
+            key := cache.HotelMappingKey(operator, operatorHotelID)
             tmp[key] = hotelID
         }
 

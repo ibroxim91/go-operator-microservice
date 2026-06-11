@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	// "fmt"
 	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/utils"
-	"io/ioutil"
+	// "io/ioutil"
 	"os"
 	"strconv"
 
@@ -41,16 +41,16 @@ func StreamFetchPage(
 	var resp *http.Response
 	var err error
 	var req *http.Request
-	logger.Log.Info().
-		Int("page", page).
-		Str("url", job.Url).
-		Msg("FETCH PAGE")
+	// logger.Log.Info().
+	// 	Int("page", page).
+	// 	Str("url", job.Url).
+	// 	Msg("FETCH PAGE")
 
 	url, err := buildURL(job.Url, page)
-		logger.Log.Info().
-			Str("handler", "search-tours").
-			Str("url", url).
-			Msg("Starting production job")
+		// logger.Log.Info().
+		// 	Str("handler", "search-tours").
+		// 	Str("url", url).
+		// 	Msg("Starting production job")
 		if err != nil {
 			logger.Log.Error().
 				Err(err).
@@ -66,10 +66,10 @@ func StreamFetchPage(
 		payload := map[string]string{"url": url}
 		bodyBytes, _ := json.Marshal(payload)
 		testURL := os.Getenv("TEST_URL")
-		logger.Log.Info().
-			Str("handler", "search-tours").
-			Str("url", url).
-			Msg("Starting test job")
+		// logger.Log.Info().
+		// 	Str("handler", "search-tours").
+		// 	Str("url", url).
+		// 	Msg("Starting test job")
 		req, err = http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
 		if err != nil {
 			logger.Log.Error().
@@ -111,10 +111,12 @@ func StreamFetchPage(
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	// body, err := ioutil.ReadAll(resp.Body)
+	
 
 	var parsed models.SearchTourResponse
-	if err := json.Unmarshal(body, &parsed); err != nil {
+	err = json.NewDecoder(resp.Body).Decode(&parsed)
+	if  err != nil {
 		logger.Log.Error().
 			Err(err).
 			Str("handler", "search-tours").
@@ -124,9 +126,9 @@ func StreamFetchPage(
 		}
 		return
 	}
-	logger.Log.Info().
-		Str("handler", "search-tours").
-		Msg(fmt.Sprintf("len prices for opertor %s: %d page %d", job.Operator, len(parsed.SearchTour_PRICES.Prices), page))
+	// logger.Log.Info().
+	// 	Str("handler", "search-tours").
+	// 	Msg(fmt.Sprintf("len prices for opertor %s: %d page %d", job.Operator, len(parsed.SearchTour_PRICES.Prices), page))
 	tickets := []*models.Ticket{}
 
 	for _, price := range parsed.SearchTour_PRICES.Prices {

@@ -18,6 +18,7 @@ services:
       - ./.env  
     ports:
       - "8088:8088"
+      - "6060:6060"
     restart: always
   # redis:
   #   networks:
@@ -47,10 +48,10 @@ services:
   #   networks:
   #     - backend_simple_travel
 
-  grafana:
-    image: grafana/grafana:10.1.0
-    container_name: grafana
-    ports:
-      - "3001:3000"
-    networks:
-      - backend_simple_travel
+  # grafana:
+  #   image: grafana/grafana:10.1.0
+  #   container_name: grafana
+  #   ports:
+  #     - "3001:3000"
+  #   networks:
+  #     - backend_simple_travel

@@ -81,6 +81,34 @@ func (r *RedisCache) GetCachedResponse(ctx context.Context, key string) (*models
 	return &resp, nil
 }
 
+const usdRateCacheKey = "usd_rate"
+
+func (r *RedisCache) GetUsdRate(ctx context.Context) (float64, bool, error) {
+	value, err := r.client.Get(ctx, usdRateCacheKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+
+	rate, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, false, err
+	}
+
+	return rate, true, nil
+}
+
+func (r *RedisCache) SetUsdRate(ctx context.Context, rate float64, ttl time.Duration) error {
+	return r.client.Set(
+		ctx,
+		usdRateCacheKey,
+		strconv.FormatFloat(rate, 'f', -1, 64),
+		ttl,
+	).Err()
+}
+
 func (r *RedisCache) SetCachedResponse(ctx context.Context, key string, resp *models.ResultResponse, ttl time.Duration) error {
 	payload, err := json.Marshal(resp)
 	if err != nil {

@@ -1,11 +1,10 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
-	"fmt"
 	"go-operator-service/models"
-	"go-operator-service/cache"
-	
+
 	"log"
 	"sync"
 )
@@ -32,12 +31,12 @@ var (
 
 
 func SaveHotelMapping(
+	ctx context.Context,
 	db *sql.DB,
 	operator string,
 	operatorHotelID int,
 	hotelID int,
-) {
-
+) error {
 	query := `
 	INSERT INTO hotel_mapping(
 		operator,
@@ -48,26 +47,14 @@ func SaveHotelMapping(
 	ON CONFLICT DO NOTHING
 	`
 
-	_, err := db.Exec(
+	_, err := db.ExecContext(
+		ctx,
 		query,
 		operator,
 		operatorHotelID,
 		hotelID,
 	)
-
-	if err != nil {
-		return
-	}
-
-	key := fmt.Sprintf(
-		"%s:%d",
-		operator,
-		operatorHotelID,
-	)
-
-	cache.MappingCacheMu.Lock()
-	cache.HotelMappingCache[key] = hotelID
-	cache.MappingCacheMu.Unlock()
+	return err
 }
 
 func GetHotelPhotos(db *sql.DB, hotelID int) ([]models.HotelPhotos, error) {

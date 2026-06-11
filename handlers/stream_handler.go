@@ -75,7 +75,7 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 
 			start := (page - 1) * 100
 			end := start + 100
-			log.Println("From Cache page = ", page, " Tickets len from cache ", len(cached.Tickets), " Page str ", pageStr)
+			// log.Println("From Cache page = ", page, " Tickets len from cache ", len(cached.Tickets), " Page str ", pageStr)
 			if start > len(cached.Tickets) {
 				start = len(cached.Tickets)
 			}
@@ -102,12 +102,22 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 			return nil
 		}
 		jobs, err := samoService.MakeURLs(samoParams)
-		if err != nil || len(jobs) == 0 {
-			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(1))
-		}
-
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+		if len(jobs) == 0 {
+			payload := StreamPayload{
+				Prices:     []*models.Ticket{},
+				Hotels:     []models.HotelSummary{},
+				End:        true,
+				Total:      0,
+				TotalPages: 0,
+				TotalItems: 0,
+			}
+			jsonData, _ := json.Marshal(payload)
+			fmt.Fprintf(rw, "data: %s\n\n", jsonData)
+			flusher.Flush()
+			return nil
 		}
 
 		// results channel va workerlarni ishga tushirish

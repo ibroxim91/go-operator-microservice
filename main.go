@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,16 +36,26 @@ func main() {
 			Msg("failed to connect redis")
 	}
 	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := services.PreloadHotelMappings(conn); err != nil {
+		logger.Log.Warn().
+			Err(err).
+			Msg("failed to preload hotel mappings")
+	}
+
+	services.StartHotelMappingWorkers(ctx, conn, services.HotelMappingWorkerCount())
+
 	hotelService := services.NewHotelService(conn)
-	samoService := services.NewSamoService(conn)
 	cacheClient, err := cache.NewRedisCache()
 	if err != nil {
 		logger.Log.Fatal().
 			Err(err).
 			Msg("failed to connect redis")
 	}
-	// Server context
-	ctx, cancel := context.WithCancel(context.Background())
+	samoService := services.NewSamoService(conn, cacheClient)
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
     if frontendOrigin == "" {
         frontendOrigin = "http://localhost:3000"
@@ -76,6 +87,20 @@ func main() {
 		}
 	})
 
+	go func() {
+		logger.Log.Info().
+			Msg("pprof started on :6060")
+	
+		if err := http.ListenAndServe(
+			":6060",
+			nil,
+		); err != nil {
+			logger.Log.Error().
+				Err(err).
+				Msg("pprof server error")
+		}
+	}()
+
 	srv := &http.Server{Addr: ":8088", Handler: e}
 	go func() {
 		if err := e.StartServer(srv); err != nil && err != http.ErrServerClosed {
@@ -89,6 +114,7 @@ func main() {
 
 	// Cancel server context → workerlar ham to‘xtaydi
 	cancel()
+	services.WaitHotelMappingWorkers(5 * time.Second)
 
 	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelTimeout()
