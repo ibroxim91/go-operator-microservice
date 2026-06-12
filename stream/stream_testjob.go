@@ -132,15 +132,10 @@ func StreamHandleTestJob(
         page1Tickets = append(page1Tickets, ticket)
     }
     t6 := time.Now()
-    logger.Log.Info().
-        Str("handler", "search-tours").
-        Str("url", job.Url).
-        Dur("latency", t6.Sub(t5)).
-        Msg("Page 1 tickets time")
     // DARHOL USERGA YUBOR
 	if len(page1Tickets) > 0 {
-		results <- models.Result{
-			Prices:        page1Tickets,
+        results <- models.Result{
+            Prices:        page1Tickets,
 			Operator:      job.Operator,
 			Departure:     job.Departure,
 			DestCountry:   job.DestCountryName,
@@ -149,6 +144,11 @@ func StreamHandleTestJob(
 			Page:          1,
 		}
     }
+    logger.Log.Info().
+        Str("handler", "search-tours").
+        Str("url", job.Url).
+        Dur("latency", t6.Sub(t5)).
+        Msg("Page 1 tickets time")
 
     // =========================
     // OTHER PAGES PARALLEL

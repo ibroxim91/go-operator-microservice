@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"time"
+
 	// "fmt"
 	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/utils"
+
 	// "io/ioutil"
 	"os"
 	"strconv"
@@ -143,6 +146,8 @@ func StreamFetchPage(
 		)
 		tickets = append(tickets, ticket)
 	}
+	t7 := time.Now()
+	
 	if len(tickets) > 0 {
 		results <- models.Result{
 			Prices:        tickets,
@@ -154,4 +159,9 @@ func StreamFetchPage(
 			Page:          page,
 		}
 	}
+	logger.Log.Info().
+		Str("handler", "search-tours").
+		Str("url", url).
+		Dur("latency", time.Since(t7)).
+		Msg("Fetch page time")
 }
