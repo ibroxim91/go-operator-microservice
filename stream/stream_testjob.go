@@ -24,7 +24,7 @@ var client = &http.Client{
 		MaxConnsPerHost:       100,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: 5 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	},
 }
@@ -63,9 +63,14 @@ func StreamHandleTestJob(
     }
 
     req.Header.Set("Content-Type", "application/json")
-
+    t1 := time.Now()
     resp, err := client.Do(req)
-
+    t2 := time.Now()
+    logger.Log.Info().
+        Str("handler", "search-tours").
+        Str("url", job.Url).
+        Dur("latency", t2.Sub(t1)).
+        Msg("Request time")
     if err != nil {
         results <- models.Result{
             Error: err.Error(),
@@ -74,9 +79,14 @@ func StreamHandleTestJob(
     }
 
     defer resp.Body.Close()
-
+    t3 := time.Now()
     body, err := ioutil.ReadAll(resp.Body)
-
+    t4 := time.Now()
+    logger.Log.Info().
+        Str("handler", "search-tours").
+        Str("url", job.Url).
+        Dur("latency", t4.Sub(t3)).
+        Msg("Read body time")
     if err != nil {
         results <- models.Result{
             Error: err.Error(),
@@ -98,7 +108,7 @@ func StreamHandleTestJob(
     // =========================
 
     page1Tickets := []*models.Ticket{}
-
+    t5 := time.Now()
     for _, price := range parsed.SearchTour_PRICES.Prices {
 
         if price.FreightExternal == "Y" {
@@ -121,7 +131,12 @@ func StreamHandleTestJob(
 
         page1Tickets = append(page1Tickets, ticket)
     }
-
+    t6 := time.Now()
+    logger.Log.Info().
+        Str("handler", "search-tours").
+        Str("url", job.Url).
+        Dur("latency", t6.Sub(t5)).
+        Msg("Page 1 tickets time")
     // DARHOL USERGA YUBOR
 	if len(page1Tickets) > 0 {
 		results <- models.Result{
@@ -172,3 +187,7 @@ func StreamHandleTestJob(
 
     wg.Wait()
 }
+
+
+
+
