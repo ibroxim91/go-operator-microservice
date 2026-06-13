@@ -14,6 +14,7 @@ import (
 	"go-operator-service/cache"
 	"go-operator-service/db"
 	"go-operator-service/handlers"
+	"go-operator-service/scheduler"
 	"go-operator-service/services"
 
 	"github.com/joho/godotenv"
@@ -66,6 +67,9 @@ log.Println(
 			Msg("failed to connect redis")
 	}
 	samoService := services.NewSamoService(conn, cacheClient)
+
+	go scheduler.StartPopularDestinationsScheduler(ctx, conn, samoService, cacheClient, hotelService)
+
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
     if frontendOrigin == "" {
         frontendOrigin = "http://localhost:3000"

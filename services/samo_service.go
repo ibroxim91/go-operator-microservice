@@ -71,7 +71,7 @@ func (s *SamoService) getServiceConfigs() []SamoServiceConfig {
 
 }
 
-func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, error) {
+func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bool, error) {
 	getTrimmed := func(name, def string) string {
 		value := strings.TrimSpace(c.QueryParam(name))
 		if value == "" {
@@ -84,8 +84,11 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 	countryID := getTrimmed("country_id", "")
 	fromCache := strings.EqualFold(getTrimmed("from_cache", "false"), "true")
 	town := getTrimmed("town", "")
-	dateFrom := formatDate(getTrimmed("dateFrom", ""))
-	dateTo := formatDate(getTrimmed("dateTo", ""))
+	rawDateFrom := strings.TrimSpace(c.QueryParam("dateFrom"))
+	rawDateTo := strings.TrimSpace(c.QueryParam("dateTo"))
+	userSpecifiedDate := rawDateFrom != "" || rawDateTo != ""
+	dateFrom := formatDate(rawDateFrom)
+	dateTo := formatDate(rawDateTo)
 	adults := getTrimmed("adults", "1")
 	children := getTrimmed("children", "0")
 	operator := getTrimmed("operator", "")
@@ -121,7 +124,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		if destinationID > 0 {
 			regionInfo, err := repository.GetRegionByID(s.DB, destinationID)
 			if err != nil && err != sql.ErrNoRows {
-				return nil, false, err
+				return nil, false, false, err
 			}
 			if regionInfo != nil {
 				countryID = strconv.Itoa(regionInfo.CountryID)
@@ -150,14 +153,14 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 
 	if departure == "" || countryID == "" {
 		log.Println("Missing required departure or country_id parameters - departure: ", departure, " | country_id: ", countryID)
-		return map[string]string{}, true, nil
+		return map[string]string{}, true, false, nil
 
 		// return nil, false, errors.New("missing required departure or country_id")
 	}
 
 	today := time.Now()
 	checkinBeg := today.Add(3 * 24 * time.Hour).Format("20060102")
-	checkinEnd := today.Add(20 * 24 * time.Hour).Format("20060102")
+	checkinEnd := today.Add(10 * 24 * time.Hour).Format("20060102")
 
 	params := map[string]string{
 		"samo_action":     "api",
@@ -252,7 +255,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, er
 		params["NIGHTS_LIST"] = "2,3,4,5,6,7"
 	}
 
-	return params, false, nil
+	return params, false, userSpecifiedDate, nil
 }
 
 func (s *SamoService) MapParams(mappedParams map[string]string, operatorName string) (map[string]string, bool, error) {
@@ -352,6 +355,24 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 	}
 
 	return mappedParams, true, nil
+}
+
+func (s *SamoService) ServiceNames() []string {
+	names := make([]string, 0)
+	seen := make(map[string]struct{})
+
+	for _, cfg := range s.getServiceConfigs() {
+		if cfg.Name == "" {
+			continue
+		}
+		if _, ok := seen[cfg.Name]; ok {
+			continue
+		}
+		seen[cfg.Name] = struct{}{}
+		names = append(names, cfg.Name)
+	}
+
+	return names
 }
 
 func (s *SamoService) GetCurrentUsdCourse() (float64, error) {

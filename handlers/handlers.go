@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strconv"
 	"time"
 
@@ -42,16 +42,14 @@ func makeSearchToursHandler(ctx context.Context, hotelService *services.HotelSer
 
 func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.HotelService, samoService *services.SamoService, cacheClient *cache.RedisCache) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		samoParams, fromCache, err := samoService.GetSamoParams(c)
+		samoParams, fromCache, userSpecifiedDate, err := samoService.GetSamoParams(c)
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
 
 		if len(samoParams) == 0 {
 			if fromCache {
-
 				homeCache, err := cacheClient.GetHomeCache(ctx)
-
 				if err != nil {
 					logger.Log.Error().
 						Err(err).
@@ -66,6 +64,27 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 				return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(1))
 			}
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request parameters"})
+		}
+		log.Println("samoParams: ", samoParams)
+		page := parseRequestedPage(samoParams)
+
+		if cache.IsPopularDestCacheEligible(c) &&
+			cache.ShouldUsePopularDestCache(userSpecifiedDate, samoParams["CHECKIN_BEG"], samoParams["CHECKIN_END"]) {
+			if cachedResult, err := loadPopularDestAsyncResult(
+				ctx,
+				cacheClient,
+				c,
+				samoParams,
+				userSpecifiedDate,
+				page,
+			); err != nil {
+				logger.Log.Warn().
+					Err(err).
+					Str("handler", "async-samo/tickets").
+					Msg("failed to load popular destination cache")
+			} else if cachedResult != nil {
+				return c.JSON(http.StatusOK, cachedResult)
+			}
 		}
 
 		cacheKey := cache.GenerateCacheKey(samoParams)
@@ -82,7 +101,16 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(1))
 		}
 
-		result, err := loadAsyncSamoTicketsResult(ctx, cacheClient, cacheKey, jobs, hotelService, samoParams)
+		result, err := loadAsyncSamoTicketsResult(
+			ctx,
+			cacheClient,
+			cacheKey,
+			jobs,
+			hotelService,
+			samoParams,
+			cache.IsPopularDestCacheEligible(c) &&
+				cache.ShouldUsePopularDestCache(userSpecifiedDate, samoParams["CHECKIN_BEG"], samoParams["CHECKIN_END"]),
+		)
 		if err != nil {
 			logger.Log.Error().
 				Err(err).
@@ -93,77 +121,93 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 	}
 }
 
-func loadAsyncSamoTicketsResult(ctx context.Context, cacheClient *cache.RedisCache, cacheKey string, jobs []models.Request, hotelService *services.HotelService, samoParams map[string]string) (*models.AsyncSamoResult, error) {
-	// determine requested page (default 1)
-	page := 1
-	if samoParams != nil {
-		if ps, ok := samoParams["PRICEPAGE"]; ok && ps != "" {
-			if p, err := strconv.Atoi(ps); err == nil && p > 0 {
-				page = p
-			}
-		}
-	}
-	const pageSize = 100
-
-	cachedResult, err := cacheClient.GetCachedAsyncResult(ctx, cacheKey)
+func loadPopularDestAsyncResult(
+	ctx context.Context,
+	cacheClient *cache.RedisCache,
+	c echo.Context,
+	samoParams map[string]string,
+	userSpecifiedDate bool,
+	page int,
+) (*models.AsyncSamoResult, error) {
+	cacheKey := cache.BuildPopularDestCacheKeyFromQuery(c)
+	cached, hit, err := cacheClient.LookupPopularDestCache(ctx, cacheKey)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("cachedResult ", bool(cachedResult != nil))
-	if cachedResult != nil {
-		// mark all returned tickets as from cache
-		fullTickets := cachedResult.Data.Results.Tickets
-		for _, ticket := range fullTickets {
-			ticket.FromCache = true
-		}
+	if !hit {
+		return nil, nil
+	}
 
-		// paginate
-		totalItems := len(fullTickets)
-		start := (page - 1) * pageSize
-		if start < 0 {
-			start = 0
-		}
-		end := start + pageSize
-		if start > totalItems {
-			start = totalItems
-		}
-		if end > totalItems {
-			end = totalItems
-		}
-		paged := fullTickets[start:end]
+	applied := services.ApplyPopularDestCacheResult(
+		cached,
+		userSpecifiedDate,
+		samoParams["CHECKIN_BEG"],
+		samoParams["CHECKIN_END"],
+	)
 
-		cachedResult.Data.TotalItems = totalItems
-		// compute pages
-		totalPages := 0
-		if totalItems > 0 {
-			totalPages = totalItems / pageSize
-			if totalItems%pageSize != 0 {
-				totalPages++
+	response := services.BuildAsyncSamoResult(models.ResultResponse{
+		Prices: applied.Tickets,
+		Total:  applied.Total,
+		Page:   page,
+	})
+	return paginateAsyncSamoResult(response, page), nil
+}
+
+func loadAsyncSamoTicketsResult(
+	ctx context.Context,
+	cacheClient *cache.RedisCache,
+	cacheKey string,
+	jobs []models.Request,
+	hotelService *services.HotelService,
+	samoParams map[string]string,
+	skipLegacyCache bool,
+) (*models.AsyncSamoResult, error) {
+	page := parseRequestedPage(samoParams)
+
+	if !skipLegacyCache {
+		cachedResult, err := cacheClient.GetCachedAsyncResult(ctx, cacheKey)
+		if err != nil {
+			return nil, err
+		}
+		if cachedResult != nil {
+			for _, ticket := range cachedResult.Data.Results.Tickets {
+				ticket.FromCache = true
 			}
+			return paginateAsyncSamoResult(cachedResult, page), nil
 		}
-		cachedResult.Data.TotalPages = totalPages
-		cachedResult.Data.PageSize = pageSize
-		cachedResult.Data.CurrentPage = page
-		cachedResult.Data.Results.Tickets = paged
-
-		return cachedResult, nil
 	}
 
 	workerResult := workers.CollectResults(ctx, jobs, len(jobs), hotelService)
-	response := buildAsyncSamoResult(workerResult)
+	response := services.BuildAsyncSamoResult(workerResult)
 
-	// cache full response if any tickets
-	if len(response.Data.Results.Tickets) > 0 {
+	if !skipLegacyCache && len(response.Data.Results.Tickets) > 0 {
 		if err := cacheClient.SetCachedAsyncResult(ctx, cacheKey, response, 10*time.Minute); err != nil {
 			logger.Log.Error().
 				Err(err).
 				Str("handler", "async-samo/tickets").
 				Msg("failed to cache async SAMO tickets result")
-			// log.Printf("Failed to cache async SAMO tickets result: %v", err) --- IGNORE ---
 		}
 	}
 
-	// apply pagination to response regardless of caching
+	return paginateAsyncSamoResult(response, page), nil
+}
+
+func parseRequestedPage(samoParams map[string]string) int {
+	page := 1
+	if samoParams == nil {
+		return page
+	}
+	if ps, ok := samoParams["PRICEPAGE"]; ok && ps != "" {
+		if p, err := strconv.Atoi(ps); err == nil && p > 0 {
+			page = p
+		}
+	}
+	return page
+}
+
+func paginateAsyncSamoResult(response *models.AsyncSamoResult, page int) *models.AsyncSamoResult {
+	const pageSize = 100
+
 	fullTickets := response.Data.Results.Tickets
 	totalItems := len(fullTickets)
 	start := (page - 1) * pageSize
@@ -177,7 +221,6 @@ func loadAsyncSamoTicketsResult(ctx context.Context, cacheClient *cache.RedisCac
 	if end > totalItems {
 		end = totalItems
 	}
-	paged := fullTickets[start:end]
 
 	response.Data.TotalItems = totalItems
 	totalPages := 0
@@ -187,96 +230,12 @@ func loadAsyncSamoTicketsResult(ctx context.Context, cacheClient *cache.RedisCac
 			totalPages++
 		}
 	}
+
 	response.Data.TotalPages = totalPages
 	response.Data.PageSize = pageSize
 	response.Data.CurrentPage = page
-	response.Data.Results.Tickets = paged
-
-	return response, nil
-}
-
-func buildAsyncSamoResult(results models.ResultResponse) *models.AsyncSamoResult {
-	tickets := make([]*models.Ticket, len(results.Prices))
-	copy(tickets, results.Prices)
-	sort.Slice(tickets, func(i, j int) bool {
-		return tickets[i].PriceFull < tickets[j].PriceFull
-	})
-
-	minPrice := 0
-	maxPrice := 0
-	if len(tickets) > 0 {
-		minPrice = tickets[0].PriceFull
-		maxPrice = tickets[0].PriceFull
-		for _, ticket := range tickets {
-			if ticket.PriceFull < minPrice {
-				minPrice = ticket.PriceFull
-			}
-			if ticket.PriceFull > maxPrice {
-				maxPrice = ticket.PriceFull
-			}
-		}
-	}
-
-	hotelMap := map[string]models.HotelSummary{}
-	hotels := make([]models.HotelSummary, 0)
-	for _, ticket := range tickets {
-		for _, hotel := range ticket.TicketHotel {
-			key := fmt.Sprintf("%d|%s", hotel.ID, hotel.Name)
-			if _, ok := hotelMap[key]; ok {
-				continue
-			}
-			hotelMap[key] = models.HotelSummary{
-				ID:          hotel.ID,
-				Name:        hotel.Name,
-				MealPlan:    hotel.MealPlan,
-				Rating:      hotel.Rating,
-				Operator:    ticket.Operator,
-				Destination: ticket.Destination.Name,
-			}
-			hotels = append(hotels, hotelMap[key])
-		}
-	}
-
-	pageSize := 100
-	totalItems := len(tickets)
-	if totalItems == 0 {
-		totalItems = 0
-	}
-	page := results.Page
-	if page == 0 {
-		page = 1
-	}
-
-	pages := 0
-	if totalItems > 0 {
-		pages = totalItems / pageSize
-		if totalItems%pageSize != 0 {
-			pages++
-		}
-	}
-
-	return &models.AsyncSamoResult{
-		Status: true,
-		Data: models.AsyncSamoData{
-			Links:       models.Links{Previous: nil, Next: nil},
-			TotalItems:  totalItems,
-			TotalPages:  pages,
-			PageSize:    pageSize,
-			Total:       results.Total,
-			CurrentPage: page,
-			Results: models.AsyncSamoResultPayload{
-				Tickets:             tickets,
-				MinPrice:            minPrice,
-				MaxPrice:            maxPrice,
-				Hotels:              hotels,
-				HotelAmenities:      []string{},
-				HotelFeaturesByType: []string{},
-				HotelTypes:          []string{},
-				TopDestinations:     []string{},
-				TopDuration:         []string{},
-			},
-		},
-	}
+	response.Data.Results.Tickets = fullTickets[start:end]
+	return response
 }
 
 func buildEmptyAsyncSamoResult(page int) *models.AsyncSamoResult {
@@ -302,4 +261,39 @@ func buildEmptyAsyncSamoResult(page int) *models.AsyncSamoResult {
 			},
 		},
 	}
+}
+
+func buildStreamPayloadFromCache(cached *models.StreamCacheResult, page int) StreamPayload {
+	if page <= 0 {
+		page = 1
+	}
+
+	start := (page - 1) * 100
+	end := start + 100
+	if start > len(cached.Tickets) {
+		start = len(cached.Tickets)
+	}
+	if end > len(cached.Tickets) {
+		end = len(cached.Tickets)
+	}
+
+	return StreamPayload{
+		Prices:     cached.Tickets[start:end],
+		Hotels:     cached.Hotels,
+		End:        true,
+		Total:      cached.Total,
+		TotalPages: (len(cached.Tickets) + 99) / 100,
+		TotalItems: cached.Total,
+		FromCache:  true,
+	}
+}
+
+func writeStreamPayload(rw http.ResponseWriter, flusher http.Flusher, payload StreamPayload) error {
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(rw, "data: %s\n\n", jsonData)
+	flusher.Flush()
+	return nil
 }

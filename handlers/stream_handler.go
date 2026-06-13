@@ -11,7 +11,7 @@ import (
 
 	// "log"
 
-	// "go-operator-service/logger"
+	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/stream"
@@ -49,58 +49,85 @@ func setStreamHeaders(c echo.Context) (http.ResponseWriter, http.Flusher, error)
 func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *services.HotelService, samoService *services.SamoService, cacheClient *cache.RedisCache) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		// tayyor parametrlar va jobs yaratish (sanoatdagi loadAsyncSamoTicketsResult bilan bir xil)
-		samoParams, _, err := samoService.GetSamoParams(c)
+		samoParams, _, userSpecifiedDate, err := samoService.GetSamoParams(c)
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
 		log.Println("samoParams stram ", samoParams)
-		cacheKey := cache.BuildStreamCacheKey(samoParams)
-		// response headerlarini sozlash
+
 		rw, flusher, err := setStreamHeaders(c)
-		cached, err := cacheClient.GetCachedStreamResult(
-			ctx,
-			cacheKey,
-		)
-
-		if err == nil && cached != nil {
-
-			pageStr := samoParams["PRICEPAGE"]
-			page, err := strconv.Atoi(pageStr)
-			if err != nil {
-				page = 1 // agar parse xato bo‘lsa default 1
-			}
-			if page <= 0 {
-				page = 1
-			}
-
-			start := (page - 1) * 100
-			end := start + 100
-			// log.Println("From Cache page = ", page, " Tickets len from cache ", len(cached.Tickets), " Page str ", pageStr)
-			if start > len(cached.Tickets) {
-				start = len(cached.Tickets)
-			}
-
-			if end > len(cached.Tickets) {
-				end = len(cached.Tickets)
-			}
-
-			payload := StreamPayload{
-				Prices:    cached.Tickets[start:end],
-				Hotels:    cached.Hotels,
-				End:       true,
-				Total:     cached.Total,
-                TotalPages:  (len(cached.Tickets) + 99) / 100,
-				FromCache: true,
-			}
-
-			jsonData, _ := json.Marshal(payload)
-
-			fmt.Fprintf(rw, "data: %s\n\n", jsonData)
-
-			flusher.Flush()
-
-			return nil
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
+
+		usePopularDestOnly := cache.IsPopularDestCacheEligible(c) &&
+			cache.ShouldUsePopularDestCache(userSpecifiedDate, samoParams["CHECKIN_BEG"], samoParams["CHECKIN_END"])
+
+		if usePopularDestOnly {
+			popularCacheKey := cache.BuildPopularDestCacheKeyFromQuery(c)
+			popularCached, hit, popularErr := cacheClient.LookupPopularDestCache(ctx, popularCacheKey)
+			if popularErr != nil {
+				logger.Log.Warn().
+					Err(popularErr).
+					Str("handler", "stream-samo/tickets").
+					Msg("failed to load popular destination stream cache")
+			} else if hit {
+				applied := services.ApplyPopularDestCacheResult(
+					popularCached,
+					userSpecifiedDate,
+					samoParams["CHECKIN_BEG"],
+					samoParams["CHECKIN_END"],
+				)
+				page := parseRequestedPage(samoParams)
+				payload := buildStreamPayloadFromCache(applied, page)
+				return writeStreamPayload(rw, flusher, payload)
+			}
+		}
+
+		cacheKey := cache.BuildStreamCacheKey(samoParams)
+
+		if !usePopularDestOnly {
+			cached, err := cacheClient.GetCachedStreamResult(
+				ctx,
+				cacheKey,
+			)
+
+			if err == nil && cached != nil {
+				pageStr := samoParams["PRICEPAGE"]
+				page, err := strconv.Atoi(pageStr)
+				if err != nil {
+					page = 1
+				}
+				if page <= 0 {
+					page = 1
+				}
+
+				start := (page - 1) * 100
+				end := start + 100
+				if start > len(cached.Tickets) {
+					start = len(cached.Tickets)
+				}
+
+				if end > len(cached.Tickets) {
+					end = len(cached.Tickets)
+				}
+
+				payload := StreamPayload{
+					Prices:     cached.Tickets[start:end],
+					Hotels:     cached.Hotels,
+					End:        true,
+					Total:      cached.Total,
+					TotalPages: (len(cached.Tickets) + 99) / 100,
+					FromCache:  true,
+				}
+
+				jsonData, _ := json.Marshal(payload)
+				fmt.Fprintf(rw, "data: %s\n\n", jsonData)
+				flusher.Flush()
+				return nil
+			}
+		}
+
 		jobs, err := samoService.MakeURLs(samoParams)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -205,18 +232,20 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 			flusher.Flush()
 		}
 
-		cacheResult := &models.StreamCacheResult{
-			Tickets: allData,
-			Hotels:  hotels,
-			Total:   len(allData),
-		}
+		if !usePopularDestOnly {
+			cacheResult := &models.StreamCacheResult{
+				Tickets: allData,
+				Hotels:  hotels,
+				Total:   len(allData),
+			}
 
-		go cacheClient.SetCachedStreamResult(
-			context.Background(),
-			cacheKey,
-			cacheResult,
-			10*time.Minute,
-		)
+			go cacheClient.SetCachedStreamResult(
+				context.Background(),
+				cacheKey,
+				cacheResult,
+				10*time.Minute,
+			)
+		}
 
 		return nil
 	}
