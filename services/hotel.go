@@ -52,17 +52,17 @@ func GetHotelData(
 	}
 
 	// 1. mappingdan qidir
-	hotel, err := FindHotelByMapping(
-		operator,
-		hotelID,
-	)
+	// hotel, err := FindHotelByMapping(
+	// 	operator,
+	// 	hotelID,
+	// )
 
-	if err == nil {
-		return hotel, true, nil
-	}
+	// if err == nil {
+	// 	return hotel, true, nil
+	// }
 
 	// 2. fallback similarity
-	hotel, err = FindHotelByName(
+	hotel, err := FindHotelByName(
 		countryID,
 		hotelName,
 	)
