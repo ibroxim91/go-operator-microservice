@@ -147,6 +147,9 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 			return nil
 		}
 
+		hotelService.BeginSearch()
+		defer hotelService.EndSearch()
+
 		// results channel va workerlarni ishga tushirish
 		results := make(chan models.Result, 1000)
 		go func() {

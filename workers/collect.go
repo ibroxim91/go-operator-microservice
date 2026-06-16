@@ -9,6 +9,9 @@ import (
 )
 
 func CollectResults(ctx context.Context, jobsList []models.Request, workerCount int, hotelService *services.HotelService) models.ResultResponse {
+	hotelService.BeginSearch()
+	defer hotelService.EndSearch()
+
 	jobs := make(chan models.Request, len(jobsList))
 	results := make(chan models.Result, len(jobsList))
 

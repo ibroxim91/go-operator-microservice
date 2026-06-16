@@ -21,9 +21,12 @@ const (
 
 // HotelMappingJob represents a single hotel mapping persistence task.
 type HotelMappingJob struct {
-	Operator        string
-	OperatorHotelID int
-	HotelID         int
+	Operator         string
+	OperatorHotelID  int
+	HotelID          int
+	HotelName        string
+	MatchedHotelName string
+	SimilarityScore  float64
 }
 
 var (
@@ -63,10 +66,10 @@ func StartHotelMappingWorkers(ctx context.Context, db *sql.DB, workerCount int) 
 			}()
 		}
 
-		logger.Log.Info().
-			Int("workers", workerCount).
-			Int("queue_size", hotelMappingQueueSize).
-			Msg("hotel mapping workers started")
+		// logger.Log.Info().
+		// 	Int("workers", workerCount).
+		// 	Int("queue_size", hotelMappingQueueSize).
+		// 	Msg("hotel mapping workers started")
 	})
 }
 
@@ -89,14 +92,30 @@ func processHotelMappingJob(ctx context.Context, db *sql.DB, job HotelMappingJob
 	key := cache.HotelMappingKey(job.Operator, job.OperatorHotelID)
 	defer hotelMappingPending.Delete(key)
 
-	if err := SaveHotelMapping(ctx, db, job); err != nil {
+	saved, err := SaveHotelMapping(ctx, db, job)
+	if err != nil {
 		logger.Log.Warn().
 			Err(err).
 			Str("operator", job.Operator).
 			Int("operator_hotel_id", job.OperatorHotelID).
-			Int("hotel_id", job.HotelID).
+			Str("hotel_name", job.HotelName).
+			Int("matched_hotel_id", job.HotelID).
+			Float64("similarity_score", job.SimilarityScore).
 			Msg("failed to save hotel mapping")
+		return
 	}
+
+	if !saved {
+		return
+	}
+
+	// logger.Log.Info().
+	// 	Str("operator", job.Operator).
+	// 	Int("operator_hotel_id", job.OperatorHotelID).
+	// 	Str("hotel_name", job.HotelName).
+	// 	Int("matched_hotel_id", job.HotelID).
+	// 	Float64("similarity_score", job.SimilarityScore).
+	// 	Msg("hotel mapping saved")
 }
 
 // EnqueueHotelMapping schedules a mapping write if it is not already cached or pending.
@@ -128,9 +147,9 @@ func EnqueueHotelMapping(job HotelMappingJob) {
 }
 
 // SaveHotelMapping persists a mapping when it is not present in cache.
-func SaveHotelMapping(ctx context.Context, db *sql.DB, job HotelMappingJob) error {
+func SaveHotelMapping(ctx context.Context, db *sql.DB, job HotelMappingJob) (bool, error) {
 	if _, ok := cache.GetMappedHotelID(job.Operator, job.OperatorHotelID); ok {
-		return nil
+		return false, nil
 	}
 
 	if err := repository.SaveHotelMapping(
@@ -140,11 +159,11 @@ func SaveHotelMapping(ctx context.Context, db *sql.DB, job HotelMappingJob) erro
 		job.OperatorHotelID,
 		job.HotelID,
 	); err != nil {
-		return fmt.Errorf("save hotel mapping: %w", err)
+		return false, fmt.Errorf("save hotel mapping: %w", err)
 	}
 
 	cache.SetHotelMapping(job.Operator, job.OperatorHotelID, job.HotelID)
-	return nil
+	return true, nil
 }
 
 // WaitHotelMappingWorkers blocks until all workers exit or the timeout elapses.

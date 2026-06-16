@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"go-operator-service/cache"
+	"go-operator-service/logger"
 
 	"strings"
 	"sync"
@@ -10,93 +11,25 @@ import (
 	"github.com/xrash/smetrics"
 )
 
-
-
-type HotelPhoto struct {
-	URL   string
-	Note  string
-	Count int // qo‘shimcha field
-}
-
 var (
 	dbQueryCounter int
 	hotelsCache    map[int][]cache.Hotel
 	cacheErr       error
-	cacheH        sync.RWMutex
-	photoCache     = map[int]*HotelPhoto{}
-	photoMu        sync.RWMutex
 	cacheMu        sync.RWMutex
-	
-	mappingOnce sync.Once
+	mappingOnce    sync.Once
 	cacheOnce      sync.Once
-    mappingErr error
+	mappingErr     error
 )
 
-
-
-func GetHotelData(
-	db *sql.DB,
-	hotelID int,
-	hotelName string,
-	operator string,
-	countryID int,
-	mealPlan string,
-) (*cache.Hotel, bool, error) {
-
-	if err := PreloadHotelsCache(db); err != nil {
-		return nil, false, err
-	}
-
-	if err := PreloadHotelMappings(db); err != nil {
-		return nil, false, err
-	}
-
-	// 1. mappingdan qidir
-	// hotel, err := FindHotelByMapping(
-	// 	operator,
-	// 	hotelID,
-	// )
-
-	// if err == nil {
-	// 	return hotel, true, nil
-	// }
-
-	// 2. fallback similarity
-	hotel, err := FindHotelByName(
-		countryID,
-		hotelName,
-	)
-
-	if err != nil {
-		return nil, false, err
-	}
-
-	// 3. mapping saqlash (background worker queue orqali)
-	EnqueueHotelMapping(HotelMappingJob{
-		Operator:        operator,
-		OperatorHotelID: hotelID,
-		HotelID:         hotel.ID,
-	})
-
-	return hotel, false, nil
-}
-
-
-
-func FindHotelByMapping(
-	operator string,
-	operatorHotelID int,
-) (*cache.Hotel, error) {
-
+func FindHotelByMapping(operator string, operatorHotelID int) (*cache.Hotel, error) {
 	hotelID, ok := cache.GetMappedHotelID(operator, operatorHotelID)
-
 	if !ok {
 		return nil, sql.ErrNoRows
 	}
 
-	cacheH.RLock()
+	cacheMu.RLock()
 	hotel, ok := cache.HotelByIDCache[hotelID]
-	cacheH.RUnlock()
+	cacheMu.RUnlock()
 
 	if !ok {
 		return nil, sql.ErrNoRows
@@ -105,6 +38,48 @@ func FindHotelByMapping(
 	return &hotel, nil
 }
 
+func FindHotelByNameWithScore(countryID int, hotelName string) (*cache.Hotel, float64, error) {
+	cacheMu.RLock()
+	hotels, ok := hotelsCache[countryID]
+	cacheMu.RUnlock()
+
+	if !ok {
+		return nil, 0, sql.ErrNoRows
+	}
+
+	target := normalize(hotelName)
+
+	var bestHotel *cache.Hotel
+	bestScore := 0.0
+
+	for i := range hotels {
+		hotel := &hotels[i]
+		score := combinedScore(target, normalize(hotel.Name))
+		if score > bestScore {
+			bestScore = score
+			bestHotel = hotel
+		}
+	}
+
+	logger.Log.Debug().
+		Str("hotel_name", hotelName).
+		Int("country_id", countryID).
+		Float64("similarity_score", bestScore).
+		Msg("hotel name similarity evaluated")
+
+	if bestHotel != nil && bestScore >= hotelMatchScoreThreshold {
+		logger.Log.Info().
+			Str("hotel_name", hotelName).
+			Str("matched_hotel_name", bestHotel.Name).
+			Int("matched_hotel_id", bestHotel.ID).
+			Int("country_id", countryID).
+			Float64("similarity_score", bestScore).
+			Msg("hotel matched by name fallback")
+		return bestHotel, bestScore, nil
+	}
+
+	return nil, bestScore, sql.ErrNoRows
+}
 
 func normalize(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
@@ -141,82 +116,6 @@ func normalize(s string) string {
 	}
 
 	return strings.Join(filtered, " ")
-}
-
-func similarity(a, b string) float64 {
-
-	aWords := strings.Fields(a)
-	bWords := strings.Fields(b)
-
-	matchCount := 0
-
-	for _, aw := range aWords {
-		for _, bw := range bWords {
-
-			if aw == bw {
-				matchCount++
-				break
-			}
-		}
-	}
-
-	maxWords := len(aWords)
-	if len(bWords) > maxWords {
-		maxWords = len(bWords)
-	}
-
-	if maxWords == 0 {
-		return 0
-	}
-
-	return (float64(matchCount) / float64(maxWords)) * 100
-}
-
-func FindHotelByName(countryID int, hotelName string) (*cache.Hotel, error) {
-
-	cacheH.RLock()
-	hotels, ok := hotelsCache[countryID]
-	cacheH.RUnlock()
-
-	if !ok {
-		return nil, sql.ErrNoRows
-	}
-
-	target := normalize(hotelName)
-
-	var bestHotel *cache.Hotel
-	bestScore := 0.0
-
-	for i := range hotels {
-
-		hotel := &hotels[i]
-		hotelNormalized := normalize(hotel.Name)
-
-		score := combinedScore(
-			target,
-			hotelNormalized,
-		)
-
-		if score > bestScore {
-			bestScore = score
-			bestHotel = hotel
-		}
-	}
-
-	// threshold
-	if bestHotel != nil && bestScore >= 70 {
-		// log.Println(
-		// 	"Hotel  found in cache for name:",
-		// 	hotelName, " Db hotel ", bestHotel.Name,
-		// 	"| COUNTRYID:",
-		// 	countryID,
-		// 	"| bestScore:",
-		// 	bestScore,
-		// )
-		return bestHotel, nil
-	}
-
-	return nil, sql.ErrNoRows
 }
 
 func combinedScore(a, b string) float64 {
@@ -266,45 +165,42 @@ func jaroScore(a, b string) float64 {
 	) * 100
 }
 
-
 func PreloadHotelMappings(db *sql.DB) error {
-    mappingOnce.Do(func() {
-        query := `
+	mappingOnce.Do(func() {
+		query := `
         SELECT
             operator,
             operator_hotel_id,
             hotel_id
         FROM hotel_mapping
         `
-        rows, err := db.Query(query)
-        if err != nil {
-            mappingErr = err
-            return
-        }
-        defer rows.Close()
+		rows, err := db.Query(query)
+		if err != nil {
+			mappingErr = err
+			return
+		}
+		defer rows.Close()
 
-        tmp := make(map[string]int)
-        for rows.Next() {
-            var operator string
-            var operatorHotelID int
-            var hotelID int
+		tmp := make(map[string]int)
+		for rows.Next() {
+			var operator string
+			var operatorHotelID int
+			var hotelID int
 
-            if err := rows.Scan(&operator, &operatorHotelID, &hotelID); err != nil {
-                continue
-            }
-            key := cache.HotelMappingKey(operator, operatorHotelID)
-            tmp[key] = hotelID
-        }
+			if err := rows.Scan(&operator, &operatorHotelID, &hotelID); err != nil {
+				continue
+			}
+			key := cache.HotelMappingKey(operator, operatorHotelID)
+			tmp[key] = hotelID
+		}
 
-        cache.MappingCacheMu.Lock()
-        cache.HotelMappingCache = tmp
-        cache.MappingCacheMu.Unlock()
-    })
+		cache.MappingCacheMu.Lock()
+		cache.HotelMappingCache = tmp
+		cache.MappingCacheMu.Unlock()
+	})
 
-    return mappingErr
+	return mappingErr
 }
-
-
 
 func PreloadHotelsCache(db *sql.DB) error {
 	cacheOnce.Do(func() {
@@ -318,13 +214,14 @@ func PreloadHotelsCache(db *sql.DB) error {
 		defer rows.Close()
 
 		tempCache := make(map[int][]cache.Hotel)
+		tempByID := make(map[int]cache.Hotel)
 		for rows.Next() {
 			var h cache.Hotel
 			var countryID int
 			if err := rows.Scan(&h.ID, &h.Name, &countryID); err != nil {
 				continue
 			}
-			cache.HotelByIDCache[h.ID] = h
+			tempByID[h.ID] = h
 			tempCache[countryID] = append(tempCache[countryID], h)
 		}
 		if err := rows.Err(); err != nil {
@@ -334,6 +231,7 @@ func PreloadHotelsCache(db *sql.DB) error {
 
 		cacheMu.Lock()
 		hotelsCache = tempCache
+		cache.HotelByIDCache = tempByID
 		cacheMu.Unlock()
 	})
 
