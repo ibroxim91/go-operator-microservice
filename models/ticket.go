@@ -27,6 +27,7 @@ type Ticket struct {
     Price          string         `json:"price"`
     PriceFull      int            `json:"price_full"`
     Operator       string         `json:"operator"`
+    HotelDBID      int            `json:"hotel_db_id"`
     DepartureID    int            `json:"departure_id"`
     DestinationID  int            `json:"destination_id"`
     CountryID      int            `json:"country_id"`

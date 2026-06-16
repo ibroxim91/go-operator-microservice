@@ -125,6 +125,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 
 	if err == nil && hotelWithPhoto != nil {
 		ticket.HotelPhoto = hotelWithPhoto.Photo
+		ticket.HotelDBID = hotelWithPhoto.ID
 		ticket.HotelPhotoCount = hotelWithPhoto.Count
 		ticket.HotelPhotos = hotelWithPhoto.HotelPhotos
 	}
