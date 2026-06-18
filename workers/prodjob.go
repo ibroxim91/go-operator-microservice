@@ -75,7 +75,7 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
     }
 
     // Agar 100 tadan kam bo‘lsa → boshqa pagelarni ham olish
-    if len(formatPrices) < 100 && parsed.SearchTour_PRICES.Pager.Total > 1 {
+    if !job.FirstPageOnly && len(formatPrices) < 100 && parsed.SearchTour_PRICES.Pager.Total > 1 {
         ch := make(chan []*models.Ticket)
         var wg sync.WaitGroup
 

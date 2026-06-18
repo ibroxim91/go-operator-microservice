@@ -64,23 +64,27 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 			cache.ShouldUsePopularDestCache(userSpecifiedDate, samoParams["CHECKIN_BEG"], samoParams["CHECKIN_END"])
 
 		if usePopularDestOnly {
-			popularCacheKey := cache.BuildPopularDestCacheKeyFromQuery(c)
-			popularCached, hit, popularErr := cacheClient.LookupPopularDestCache(ctx, popularCacheKey)
+			popularCached, hit, popularErr := cacheClient.LookupPopularDestCache(ctx, cache.PopularDestinationsCacheKey)
 			if popularErr != nil {
 				logger.Log.Warn().
 					Err(popularErr).
 					Str("handler", "stream-samo/tickets").
 					Msg("failed to load popular destination stream cache")
 			} else if hit {
-				applied := services.ApplyPopularDestCacheResult(
+				filtered := services.FilterPopularDestAsyncResult(
 					popularCached,
+					c.QueryParam("departure"),
+					c.QueryParam("destination"),
+					c.QueryParam("country_id"),
 					userSpecifiedDate,
 					samoParams["CHECKIN_BEG"],
 					samoParams["CHECKIN_END"],
 				)
-				page := parseRequestedPage(samoParams)
-				payload := buildStreamPayloadFromCache(applied, page)
-				return writeStreamPayload(rw, flusher, payload)
+				if filtered != nil && len(filtered.Data.Results.Tickets) > 0 {
+					page := parseRequestedPage(samoParams)
+					payload := buildStreamPayloadFromAsyncCache(filtered, page)
+					return writeStreamPayload(rw, flusher, payload)
+				}
 			}
 		}
 

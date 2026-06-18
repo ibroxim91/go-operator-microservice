@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	defaultPopularDestSchedulerInterval = 20 * time.Minute
+	defaultPopularDestSchedulerInterval = 3 * time.Hour
 	defaultPopularDestCollectWorkers    = 5
+	popularDestSearchAdults             = "2"
 )
 
 type PopularDestinationsScheduler struct {
@@ -49,6 +50,7 @@ func StartPopularDestinationsScheduler(
 	logger.Log.Info().
 		Dur("interval", scheduler.interval).
 		Int("workers", scheduler.workerCount).
+		Str("cache_key", cache.PopularDestinationsCacheKey).
 		Msg("popular destinations cache scheduler started")
 
 	scheduler.runOnce(ctx)
@@ -83,7 +85,9 @@ func (s *PopularDestinationsScheduler) runOnce(ctx context.Context) {
 	}
 
 	dateFrom, dateTo := cache.PopularDestCacheDateRange(time.Now())
-	var savedCount int
+	perDestinationTickets := make([][]*models.Ticket, 0, len(destinations))
+	var totalFound int
+	var processedCount int
 	var failedCount int
 
 	for _, dest := range destinations {
@@ -91,40 +95,74 @@ func (s *PopularDestinationsScheduler) runOnce(ctx context.Context) {
 			return
 		}
 
-		if err := s.warmDestination(ctx, dest, dateFrom, dateTo); err != nil {
+		topTickets, foundCount, err := s.collectForDestination(ctx, dest, dateFrom, dateTo)
+		if err != nil {
 			failedCount++
 			logger.Log.Warn().
 				Err(err).
 				Int("destination_id", dest.ID).
 				Int("departure_region_id", dest.RegionID).
 				Int("destination_region_id", dest.ToRegionID).
-				Msg("failed to warm popular destination cache")
+				Msg("failed to collect popular destination tickets")
 			continue
 		}
-		savedCount++
+
+		if len(topTickets) > 0 {
+			perDestinationTickets = append(perDestinationTickets, topTickets)
+		}
+		totalFound += foundCount
+		processedCount++
+	}
+
+	if len(perDestinationTickets) == 0 {
+		logger.Log.Warn().
+			Int("destinations", len(destinations)).
+			Int("failed", failedCount).
+			Msg("popular destinations cache warmup produced no tickets")
+		return
+	}
+
+	cacheResult := services.BuildPopularDestAsyncResult(perDestinationTickets, totalFound)
+	if err := s.cacheClient.SetPopularDestCache(
+		ctx,
+		cache.PopularDestinationsCacheKey,
+		cacheResult,
+		cache.PopularDestCacheTTL,
+	); err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("key", cache.PopularDestinationsCacheKey).
+			Msg("failed to save popular destinations cache")
+		return
 	}
 
 	logger.Log.Info().
 		Int("destinations", len(destinations)).
-		Int("saved", savedCount).
+		Int("processed", processedCount).
 		Int("failed", failedCount).
+		Int("total_found", totalFound).
+		Int("tickets", len(cacheResult.Data.Results.Tickets)).
+		Str("key", cache.PopularDestinationsCacheKey).
 		Str("date_from", dateFrom).
 		Str("date_to", dateTo).
 		Dur("duration", time.Since(startedAt)).
 		Msg("popular destinations cache warmup completed")
 }
 
-func (s *PopularDestinationsScheduler) warmDestination(
+func (s *PopularDestinationsScheduler) collectForDestination(
 	ctx context.Context,
 	dest repository.PopularDestination,
 	dateFrom string,
 	dateTo string,
-) error {
+) ([]*models.Ticket, int, error) {
 	params := buildPopularDestSearchParams(dest, dateFrom, dateTo)
 
 	jobs, err := s.samoService.MakeURLs(params)
 	if err != nil {
-		return err
+		return nil, 0, err
+	}
+	for i := range jobs {
+		jobs[i].FirstPageOnly = true
 	}
 
 	var tickets []*models.Ticket
@@ -133,23 +171,16 @@ func (s *PopularDestinationsScheduler) warmDestination(
 		tickets = result.Prices
 	}
 
-	cacheResult := services.BuildStreamCacheResult(tickets)
-	key := cache.BuildPopularDestCacheKey(
-		strconv.Itoa(dest.RegionID),
-		strconv.Itoa(dest.ToRegionID),
-		"1",
-	)
-
-	if err := s.cacheClient.SetPopularDestCache(ctx, key, cacheResult, cache.PopularDestCacheTTL); err != nil {
-		return err
-	}
-
+	topTickets := services.TakeCheapestTickets(tickets, 10)
 	logger.Log.Info().
-		Str("key", key).
-		Int("tickets", len(tickets)).
-		Msg("popular destination cache saved")
+		Int("destination_id", dest.ID).
+		Int("departure_region_id", dest.RegionID).
+		Int("destination_region_id", dest.ToRegionID).
+		Int("total_tickets", len(tickets)).
+		Int("saved_tickets", len(topTickets)).
+		Msg("popular destination tickets selected")
 
-	return nil
+	return topTickets, len(tickets), nil
 }
 
 func buildPopularDestSearchParams(
@@ -164,7 +195,7 @@ func buildPopularDestSearchParams(
 		"action":          "SearchTour_PRICES",
 		"OPERATOR":        "",
 		"PRICEPAGE":       "1",
-		"ADULT":           "1",
+		"ADULT":           popularDestSearchAdults,
 		"CHILD":           "0",
 		"CURRENCY":        "2",
 		"CHECKIN_BEG":     dateFrom,

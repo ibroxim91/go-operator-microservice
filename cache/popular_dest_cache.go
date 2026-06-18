@@ -14,36 +14,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const popularDestCachePrefix = "popular_dest"
+const PopularDestinationsCacheKey = "popular_destinations"
 
 // PopularDestCacheTTL scheduler intervalidan uzunroq bo'lishi kerak.
 const PopularDestCacheTTL = 25 * time.Minute
 
-func BuildPopularDestCacheKey(departure, destination, adults string) string {
-	if strings.TrimSpace(adults) == "" {
-		adults = "1"
-	}
-
-	parts := []string{
-		popularDestCachePrefix,
-		strings.TrimSpace(departure),
-		strings.TrimSpace(destination),
-		strings.TrimSpace(adults),
-	}
-	return strings.Join(parts, ":")
-}
-
 func BuildPopularDestCacheKeyFromQuery(c echo.Context) string {
-	adults := strings.TrimSpace(c.QueryParam("adults"))
-	if adults == "" {
-		adults = "1"
-	}
-
-	return BuildPopularDestCacheKey(
-		c.QueryParam("departure"),
-		c.QueryParam("destination"),
-		adults,
-	)
+	return PopularDestinationsCacheKey
 }
 
 func IsPopularDestCacheEligible(c echo.Context) bool {
@@ -67,7 +44,12 @@ func IsPopularDestCacheEligible(c echo.Context) bool {
 	}
 
 	children := strings.TrimSpace(c.QueryParam("children"))
-	return children == "" || children == "0"
+	if children != "" && children != "0" {
+		return false
+	}
+
+	adults := strings.TrimSpace(c.QueryParam("adults"))
+	return adults == "" || adults == "1"
 }
 
 // ShouldUsePopularDestCache decides whether cached data can satisfy the request.
@@ -136,7 +118,7 @@ func FormatPopularDestDate(value time.Time) string {
 func (r *RedisCache) GetPopularDestCache(
 	ctx context.Context,
 	key string,
-) (*models.StreamCacheResult, error) {
+) (*models.AsyncSamoResult, error) {
 	value, err := r.client.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -145,7 +127,7 @@ func (r *RedisCache) GetPopularDestCache(
 		return nil, err
 	}
 
-	var result models.StreamCacheResult
+	var result models.AsyncSamoResult
 	if err := json.Unmarshal([]byte(value), &result); err != nil {
 		return nil, err
 	}
@@ -156,7 +138,7 @@ func (r *RedisCache) GetPopularDestCache(
 func (r *RedisCache) LookupPopularDestCache(
 	ctx context.Context,
 	key string,
-) (*models.StreamCacheResult, bool, error) {
+) (*models.AsyncSamoResult, bool, error) {
 	cached, err := r.GetPopularDestCache(ctx, key)
 	if err != nil {
 		return nil, false, err
@@ -173,7 +155,7 @@ func (r *RedisCache) LookupPopularDestCache(
 func (r *RedisCache) SetPopularDestCache(
 	ctx context.Context,
 	key string,
-	result *models.StreamCacheResult,
+	result *models.AsyncSamoResult,
 	ttl time.Duration,
 ) error {
 	if result == nil {

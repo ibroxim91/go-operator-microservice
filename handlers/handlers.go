@@ -129,8 +129,7 @@ func loadPopularDestAsyncResult(
 	userSpecifiedDate bool,
 	page int,
 ) (*models.AsyncSamoResult, error) {
-	cacheKey := cache.BuildPopularDestCacheKeyFromQuery(c)
-	cached, hit, err := cacheClient.LookupPopularDestCache(ctx, cacheKey)
+	cached, hit, err := cacheClient.LookupPopularDestCache(ctx, cache.PopularDestinationsCacheKey)
 	if err != nil {
 		return nil, err
 	}
@@ -138,19 +137,27 @@ func loadPopularDestAsyncResult(
 		return nil, nil
 	}
 
-	applied := services.ApplyPopularDestCacheResult(
+	sliced := services.FilterPopularDestAsyncResult(
 		cached,
+		c.QueryParam("departure"),
+		c.QueryParam("destination"),
+		c.QueryParam("country_id"),
 		userSpecifiedDate,
 		samoParams["CHECKIN_BEG"],
 		samoParams["CHECKIN_END"],
 	)
+	if sliced == nil || len(sliced.Data.Results.Tickets) == 0 {
+		return nil, nil
+	}
 
-	response := services.BuildAsyncSamoResult(models.ResultResponse{
-		Prices: applied.Tickets,
-		Total:  applied.Total,
-		Page:   page,
-	})
-	return paginateAsyncSamoResult(response, page), nil
+	return paginatePopularDestAsyncResult(sliced, page), nil
+}
+
+func paginatePopularDestAsyncResult(response *models.AsyncSamoResult, page int) *models.AsyncSamoResult {
+	totalFound := response.Data.TotalItems
+	paginated := paginateAsyncSamoResult(response, page)
+	paginated.Data.TotalItems = totalFound
+	return paginated
 }
 
 func loadAsyncSamoTicketsResult(
@@ -260,6 +267,32 @@ func buildEmptyAsyncSamoResult(page int) *models.AsyncSamoResult {
 				TopDuration:         []string{},
 			},
 		},
+	}
+}
+
+func buildStreamPayloadFromAsyncCache(cached *models.AsyncSamoResult, page int) StreamPayload {
+	if page <= 0 {
+		page = 1
+	}
+
+	tickets := cached.Data.Results.Tickets
+	start := (page - 1) * 100
+	end := start + 100
+	if start > len(tickets) {
+		start = len(tickets)
+	}
+	if end > len(tickets) {
+		end = len(tickets)
+	}
+
+	return StreamPayload{
+		Prices:     tickets[start:end],
+		Hotels:     cached.Data.Results.Hotels,
+		End:        true,
+		Total:      cached.Data.Total,
+		TotalPages: (len(tickets) + 99) / 100,
+		TotalItems: cached.Data.TotalItems,
+		FromCache:  true,
 	}
 }
 

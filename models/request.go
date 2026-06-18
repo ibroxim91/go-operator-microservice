@@ -11,6 +11,7 @@ type Request struct {
 	DestCountryName string `json:"destination_country_name"`
 	DestImageUrl string `json:"destination_image_url"`
 	CurrentUsdCourse float64 `json:"current_usd_course"`
-	Istest bool `json:"test"`
-	Page  int `json:"page"`
+	Istest           bool `json:"test"`
+	Page             int  `json:"page"`
+	FirstPageOnly    bool `json:"first_page_only"`
 }

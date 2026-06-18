@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -160,6 +161,75 @@ func ApplyPopularDestCacheResult(
 		Tickets: marked,
 		Hotels:  BuildHotelSummaries(marked),
 		Total:   len(marked),
+	}
+}
+
+func TakeCheapestTickets(tickets []*models.Ticket, limit int) []*models.Ticket {
+	if limit <= 0 || len(tickets) == 0 {
+		return nil
+	}
+
+	sorted := make([]*models.Ticket, len(tickets))
+	copy(sorted, tickets)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].PriceFull < sorted[j].PriceFull
+	})
+
+	if len(sorted) > limit {
+		sorted = sorted[:limit]
+	}
+
+	return sorted
+}
+
+func FilterPopularDestCacheTickets(
+	tickets []*models.Ticket,
+	departure string,
+	destination string,
+	countryID string,
+) []*models.Ticket {
+	departureID, _ := strconv.Atoi(strings.TrimSpace(departure))
+	destinationID, _ := strconv.Atoi(strings.TrimSpace(destination))
+	countryIDInt, _ := strconv.Atoi(strings.TrimSpace(countryID))
+
+	filtered := make([]*models.Ticket, 0, len(tickets))
+	for _, ticket := range tickets {
+		if departureID > 0 && ticket.DepartureID != departureID {
+			continue
+		}
+		if destinationID > 0 && ticket.DestinationID != destinationID {
+			continue
+		}
+		if countryIDInt > 0 && destinationID == 0 && ticket.CountryID != countryIDInt {
+			continue
+		}
+		filtered = append(filtered, ticket)
+	}
+
+	return filtered
+}
+
+func SlicePopularDestCacheResult(
+	cached *models.StreamCacheResult,
+	departure string,
+	destination string,
+	countryID string,
+) *models.StreamCacheResult {
+	if cached == nil {
+		return nil
+	}
+
+	tickets := FilterPopularDestCacheTickets(
+		cached.Tickets,
+		departure,
+		destination,
+		countryID,
+	)
+
+	return &models.StreamCacheResult{
+		Tickets: tickets,
+		Hotels:  BuildHotelSummaries(tickets),
+		Total:   len(tickets),
 	}
 }
 

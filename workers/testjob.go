@@ -109,7 +109,7 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 	//	Str("handler", "search-tours").
 	//	Msg(fmt.Sprintf("parsed.SearchTour_PRICES.Pager.Total for opertor %s: %d", job.Operator, parsed.SearchTour_PRICES.Pager.Total))
 	// Agar 100 tadan kam bo‘lsa → boshqa pagelarni ham olish
-	if len(formatPrices) < 500 && parsed.SearchTour_PRICES.Pager.Total > 1 {
+	if !job.FirstPageOnly && len(formatPrices) < 500 && parsed.SearchTour_PRICES.Pager.Total > 1 {
 		ch := make(chan []*models.Ticket)
 		var wg sync.WaitGroup
 

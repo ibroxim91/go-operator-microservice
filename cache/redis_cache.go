@@ -49,7 +49,7 @@ func NewRedisCache() (*RedisCache, error) {
 }
 
 func (r *RedisCache) GetHomeCache(ctx context.Context) (*models.AsyncSamoResult, error) {
-	value, err := r.client.Get(ctx, "home_tours").Result()
+	value, err := r.client.Get(ctx, "popular_destinations").Result()
 
 	if err != nil {
 		if err == redis.Nil {

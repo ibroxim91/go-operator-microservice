@@ -15,7 +15,7 @@ import (
 	"go-operator-service/db"
 	"go-operator-service/handlers"
 
-	// "go-operator-service/scheduler"
+	"go-operator-service/scheduler"
 	"go-operator-service/services"
 
 	"go-operator-service/logger"
@@ -70,7 +70,7 @@ func main() {
 	}
 	samoService := services.NewSamoService(conn, cacheClient)
 
-	// go scheduler.StartPopularDestinationsScheduler(ctx, conn, samoService, cacheClient, hotelService)
+	go scheduler.StartPopularDestinationsScheduler(ctx, conn, samoService, cacheClient, hotelService)
 
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
 	if frontendOrigin == "" {
