@@ -117,7 +117,7 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 			price, job.Departure,
 			job.Operator, job.DestCountryName, job.DestImageUrl,
 			job.CurrentUsdCourse, job.DestinationID,
-			job.DepartureID, job.CountryID, hotelService, false,
+			job.DepartureID, job.CountryID, hotelService, false, url,
 		)
 		tickets = append(tickets, ticket)
 	}

@@ -2,11 +2,14 @@ package handlers
 
 import (
 	"context"
+	"errors"
+
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"go-operator-service/cache"
@@ -42,6 +45,27 @@ func makeSearchToursHandler(ctx context.Context, hotelService *services.HotelSer
 
 func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.HotelService, samoService *services.SamoService, cacheClient *cache.RedisCache) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		if token := strings.TrimSpace(c.QueryParam("shared_token")); token != "" {
+			result, err := ResolveSharedTour(c.Request().Context(), cacheClient, hotelService, samoService, token)
+			logger.Log.Println("Error ", err)
+			if err != nil {
+				switch {
+				case errors.Is(err, ErrSharePayloadNotFound):
+					return c.JSON(http.StatusNotFound, map[string]string{"error": "share link not found or expired"})
+				case errors.Is(err, ErrShareTourNotFound):
+					return c.JSON(http.StatusNotFound, map[string]string{"error": "tour not found for share link"})
+				default:
+					logger.Log.Error().
+						Err(err).
+						Str("handler", "async-samo/tickets").
+						Str("shared_token", token).
+						Msg("failed to resolve shared tour")
+					return c.JSON(http.StatusBadGateway, map[string]string{"error": "failed to load shared tour"})
+				}
+			}
+			return c.JSON(http.StatusOK, result)
+		}
+
 		samoParams, fromCache, userSpecifiedDate, err := samoService.GetSamoParams(c)
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -150,12 +174,12 @@ func loadPopularDestAsyncResult(
 		return nil, nil
 	}
 
-	return paginatePopularDestAsyncResult(sliced, page), nil
+	return paginatePopularDestAsyncResult(ctx, cacheClient, sliced, page), nil
 }
 
-func paginatePopularDestAsyncResult(response *models.AsyncSamoResult, page int) *models.AsyncSamoResult {
+func paginatePopularDestAsyncResult(ctx context.Context, cacheClient *cache.RedisCache, response *models.AsyncSamoResult, page int) *models.AsyncSamoResult {
 	totalFound := response.Data.TotalItems
-	paginated := paginateAsyncSamoResult(response, page)
+	paginated := paginateAsyncSamoResult(ctx, cacheClient, response, page)
 	paginated.Data.TotalItems = totalFound
 	return paginated
 }
@@ -180,7 +204,7 @@ func loadAsyncSamoTicketsResult(
 			for _, ticket := range cachedResult.Data.Results.Tickets {
 				ticket.FromCache = true
 			}
-			return paginateAsyncSamoResult(cachedResult, page), nil
+			return paginateAsyncSamoResult(ctx, cacheClient, cachedResult, page), nil
 		}
 	}
 
@@ -196,7 +220,7 @@ func loadAsyncSamoTicketsResult(
 		}
 	}
 
-	return paginateAsyncSamoResult(response, page), nil
+	return paginateAsyncSamoResult(ctx, cacheClient, response, page), nil
 }
 
 func parseRequestedPage(samoParams map[string]string) int {
@@ -212,7 +236,9 @@ func parseRequestedPage(samoParams map[string]string) int {
 	return page
 }
 
-func paginateAsyncSamoResult(response *models.AsyncSamoResult, page int) *models.AsyncSamoResult {
+
+
+func paginateAsyncSamoResult(ctx context.Context, cacheClient *cache.RedisCache, response *models.AsyncSamoResult, page int) *models.AsyncSamoResult {
 	const pageSize = 100
 
 	fullTickets := response.Data.Results.Tickets
@@ -242,6 +268,7 @@ func paginateAsyncSamoResult(response *models.AsyncSamoResult, page int) *models
 	response.Data.PageSize = pageSize
 	response.Data.CurrentPage = page
 	response.Data.Results.Tickets = fullTickets[start:end]
+	cache.ApplyShareTokensToTickets(ctx, cacheClient, response.Data.Results.Tickets)
 	return response
 }
 

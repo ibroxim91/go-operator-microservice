@@ -70,6 +70,7 @@ func StreamHandleProdJob(
             job.CountryID,
             hotelService,
             false,
+            job.Url,
         )
         page1Tickets = append(page1Tickets, ticket)
     }

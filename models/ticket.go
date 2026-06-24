@@ -1,6 +1,12 @@
 package models
 type BoolString bool
 
+type SharePayload struct {
+    Operator   string `json:"operator"`
+    TourID     string `json:"tour_id"`
+    SearchURL  string `json:"search_url"`
+}
+
 func (b *BoolString) UnmarshalJSON(data []byte) error {
     s := string(data)
     switch s {
@@ -20,9 +26,11 @@ func (b *BoolString) UnmarshalJSON(data []byte) error {
 
 type Ticket struct {
     TourOperatorID string         `json:"tour_operator_id"`
+    ShareToken     string         `json:"share_token"`
     ID             int            `json:"id"`
     Title          string         `json:"title"`
     Slug           string         `json:"slug"`
+    RequestUrl     string         `json:"-"`
     Nights         int            `json:"nights"`
     Price          string         `json:"price"`
     PriceFull      int            `json:"price_full"`

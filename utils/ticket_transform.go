@@ -2,21 +2,38 @@ package utils
 
 import (
 	"fmt"
+	// "crypto/sha1"
+	// "bytes"
+	// "compress/gzip"
+	// "encoding/base64"
+	// "errors"
+
+	// "encoding/hex"
+	// "encoding/json"
+	// "net/url"
+	// "go-operator-service/logger"
+	// "github.com/jxskiss/base62"
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"math"
 	"os"
 	"strconv"
 	"strings"
+
 )
 
+
+
 func TransformSamoPriceToTicket(price models.Price, departure, operator, country, countrImageUrl string,
-	currentUsdCourse float64, destinationID, departureID, countryID int, hotelService *services.HotelService, fromCache bool) *models.Ticket {
+	currentUsdCourse float64, destinationID, departureID, countryID int, hotelService *services.HotelService, 
+	fromCache bool, requestURL string) *models.Ticket {
 
 	priceValue := 0.0
 	if val, err := strconv.ParseFloat(price.Price, 64); err == nil {
 		priceValue = val
 	}
+
+	
 
 	// kursga doimiy 200 qo‘shib hisoblash
 	adjustedCourse := currentUsdCourse + 200
@@ -39,17 +56,13 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		hotelName = hotelName[start:end]
 	}
 	hotel := GetHotel(&price, hotelName)
-
 	slug := strings.ToLower(strings.ReplaceAll(price.Tour, " ", "-"))
-	slug = strings.ReplaceAll(slug, "/", "-")
-	slug += fmt.Sprintf("-%d", price.StateKey)
-	// if os.Getenv("TEST") == "true" {
+    slug = strings.ReplaceAll(slug, "/", "-")
 	countrImageUrl = buildCountryImageURL(countrImageUrl)
-
-	// }
 	ticket := &models.Ticket{
 		TourOperatorID:    price.ID,
 		ID:                price.TourKey,
+		RequestUrl:        requestURL,
 		Title:             price.Tour,
 		Currency:          price.Currency,
 		HotelAvailability: price.HotelAvailability,
@@ -132,7 +145,6 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 
 	return ticket
 }
-
 
 func buildCountryImageURL(countrImageUrl string) string {
     // Agar countrImageUrl "country-images" bilan boshlasa, oldiga /resources/media/ qo'shamiz

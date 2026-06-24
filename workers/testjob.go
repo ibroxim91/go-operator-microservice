@@ -97,7 +97,7 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 			price, job.Departure,
 			job.Operator, job.DestCountryName, job.DestImageUrl,
 			job.CurrentUsdCourse, job.DestinationID,
-			job.DepartureID, job.CountryID, hotelService, false,
+			job.DepartureID, job.CountryID, hotelService, false, job.Url,
 		)
 		formatPrices = append(formatPrices, ticket)
 	}

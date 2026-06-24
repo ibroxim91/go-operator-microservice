@@ -123,6 +123,7 @@ func (s *PopularDestinationsScheduler) runOnce(ctx context.Context) {
 	}
 
 	cacheResult := services.BuildPopularDestAsyncResult(perDestinationTickets, totalFound)
+	cache.ApplyShareTokensToTickets(ctx, s.cacheClient, cacheResult.Data.Results.Tickets)
 	if err := s.cacheClient.SetPopularDestCache(
 		ctx,
 		cache.PopularDestinationsCacheKey,
