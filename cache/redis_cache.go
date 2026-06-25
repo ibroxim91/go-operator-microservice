@@ -2,17 +2,17 @@ package cache
 
 import (
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"go-operator-service/models"
 	"log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-	"crypto/sha1"
-	"go-operator-service/models"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -20,9 +20,6 @@ import (
 type RedisCache struct {
 	client *redis.Client
 }
-
-
-
 
 func NewRedisCache() (*RedisCache, error) {
 	addr := os.Getenv("REDIS_ADDR")
@@ -52,41 +49,35 @@ func NewRedisCache() (*RedisCache, error) {
 }
 
 func BuildShareToken(payload models.SharePayload) string {
-    source := payload.TourID 
-    sum := sha1.Sum([]byte(source))
-    return hex.EncodeToString(sum[:12])
+	source := strings.Join([]string{
+		strings.TrimSpace(payload.Operator),
+		strings.TrimSpace(payload.TourID),
+		strings.TrimSpace(payload.SearchURL),
+	}, "|")
+	sum := sha1.Sum([]byte(source))
+	return hex.EncodeToString(sum[:12])
 }
 
-
 func SaveSharePayload(
-    ctx context.Context,
-    cacheClient *RedisCache,
-    payload models.SharePayload,
+	ctx context.Context,
+	cacheClient *RedisCache,
+	payload models.SharePayload,
 ) (string, error) {
 
-    token := BuildShareToken(payload)
-    key := "share:" + token
+	token := BuildShareToken(payload)
+	key := "share:" + token
 
-    exists, err := cacheClient.client.Exists(ctx, key).Result()
-    if err != nil {
-        return "", err
-    }
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
 
-    if exists > 0 {
-        return token, nil
-    }
-
-    data, err := json.Marshal(payload)
-    if err != nil {
-        return "", err
-    }
-
-    return token, cacheClient.client.Set(
-        ctx,
-        key,
-        data,
-        7*24*time.Hour,
-    ).Err()
+	return token, cacheClient.client.Set(
+		ctx,
+		key,
+		data,
+		7*24*time.Hour,
+	).Err()
 }
 
 func ApplyShareTokensToTickets(
@@ -122,31 +113,30 @@ func ApplyShareTokensToTickets(
 }
 
 func GetSharePayload(
-    ctx context.Context,
-    cacheClient *RedisCache,
-    token string,
+	ctx context.Context,
+	cacheClient *RedisCache,
+	token string,
 ) (*models.SharePayload, error) {
-    token = strings.TrimSpace(token)
-    if token == "" {
-        return nil, nil
-    }
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, nil
+	}
 
-    key := "share:" + token
-    value, err := cacheClient.client.Get(ctx, key).Result()
-    if err != nil {
-        if err == redis.Nil {
-            return nil, nil
-        }
-        return nil, err
-    }
+	key := "share:" + token
+	value, err := cacheClient.client.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
 
-    var payload models.SharePayload
-    if err := json.Unmarshal([]byte(value), &payload); err != nil {
-        return nil, err
-    }
-    return &payload, nil
+	var payload models.SharePayload
+	if err := json.Unmarshal([]byte(value), &payload); err != nil {
+		return nil, err
+	}
+	return &payload, nil
 }
-
 
 func (r *RedisCache) GetHomeCache(ctx context.Context) (*models.AsyncSamoResult, error) {
 	value, err := r.client.Get(ctx, "popular_destinations").Result()
