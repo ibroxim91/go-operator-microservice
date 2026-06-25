@@ -17,7 +17,7 @@ import (
 const PopularDestinationsCacheKey = "popular_destinations"
 
 // PopularDestCacheTTL scheduler intervalidan uzunroq bo'lishi kerak.
-const PopularDestCacheTTL = 25 * time.Minute
+const PopularDestCacheTTL = 4 * time.Hour
 
 func BuildPopularDestCacheKeyFromQuery(c echo.Context) string {
 	return PopularDestinationsCacheKey
