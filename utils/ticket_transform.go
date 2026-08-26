@@ -75,6 +75,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		RoomType:          price.Room,
 		Place:             price.Place,
 		FreightExternal:   price.FreightExternal,
+		CrossTour:         price.CrossTour,
 		Operator:          operator,
 		DepartureID:       departureID,
 		DestinationID:     destinationID,

@@ -3,7 +3,7 @@ package services
 import (
 	"database/sql"
 	"go-operator-service/cache"
-	"go-operator-service/logger"
+	// "go-operator-service/logger"
 
 	"strings"
 	"sync"
@@ -20,6 +20,8 @@ var (
 	cacheOnce      sync.Once
 	mappingErr     error
 )
+
+
 
 func FindHotelByMapping(operator string, operatorHotelID int) (*cache.Hotel, error) {
 	hotelID, ok := cache.GetMappedHotelID(operator, operatorHotelID)
@@ -61,20 +63,20 @@ func FindHotelByNameWithScore(countryID int, hotelName string) (*cache.Hotel, fl
 		}
 	}
 
-	logger.Log.Debug().
-		Str("hotel_name", hotelName).
-		Int("country_id", countryID).
-		Float64("similarity_score", bestScore).
-		Msg("hotel name similarity evaluated")
+	// logger.Log.Debug().
+	// 	Str("hotel_name", hotelName).
+	// 	Int("country_id", countryID).
+	// 	Float64("similarity_score", bestScore).
+	// 	Msg("hotel name similarity evaluated")
 
 	if bestHotel != nil && bestScore >= hotelMatchScoreThreshold {
-		logger.Log.Info().
-			Str("hotel_name", hotelName).
-			Str("matched_hotel_name", bestHotel.Name).
-			Int("matched_hotel_id", bestHotel.ID).
-			Int("country_id", countryID).
-			Float64("similarity_score", bestScore).
-			Msg("hotel matched by name fallback")
+		// logger.Log.Info().
+		// 	Str("hotel_name", hotelName).
+		// 	Str("matched_hotel_name", bestHotel.Name).
+		// 	Int("matched_hotel_id", bestHotel.ID).
+		// 	Int("country_id", countryID).
+		// 	Float64("similarity_score", bestScore).
+		// 	Msg("hotel matched by name fallback")
 		return bestHotel, bestScore, nil
 	}
 

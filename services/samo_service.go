@@ -283,17 +283,17 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 		}
 	}
 
-	if townFromID > 0 {
-		regionMapping, err := repository.GetRegionMapping(s.DB, operatorName, townFromID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				log.Printf("No region mapping found for operator: %s, townFromID: %d", operatorName, townFromID)
-				return nil, false, nil
-			}
-			return nil, false, err
-		}
-		mappedParams["TOWNFROMINC"] = strconv.Itoa(regionMapping.OperatorTownID)
-	}
+	// if townFromID > 0 {
+	// 	regionMapping, err := repository.GetRegionMapping(s.DB, operatorName, townFromID)
+	// 	if err != nil {
+	// 		if err == sql.ErrNoRows {
+	// 			log.Printf("No region mapping found for operator: %s, townFromID: %d", operatorName, townFromID)
+	// 			return nil, false, nil
+	// 		}
+	// 		return nil, false, err
+	// 	}
+	// 	mappedParams["TOWNFROMINC"] = strconv.Itoa(regionMapping.OperatorTownID)
+	// }
 
 	if townID > 0 {
 		townMapping, err := repository.GetTownMapping(s.DB, operatorName, townID)
@@ -325,6 +325,7 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 			mappedParams["TOWNS"] = strings.Join(operatorTownIDs, ",")
 		}
 		// else{
+		// 	log.Println("No town mappings found for operator: ", operatorName, " regionID: ", DestinationID)
 		// 	return nil, false, nil
 
 		// }

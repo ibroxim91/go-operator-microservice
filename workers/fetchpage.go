@@ -49,10 +49,10 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 		payload := map[string]string{"url": url}
 		bodyBytes, _ := json.Marshal(payload)
 		testURL := os.Getenv("TEST_URL")
-		logger.Log.Info().
-			Str("handler", "search-tours").
-			Str("url", url).
-			Msg("Starting test job")
+		// logger.Log.Info().
+		// 	Str("handler", "search-tours").
+		// 	Str("url", url).
+		// 	Msg("Starting test job")
 		req, err = http.NewRequestWithContext(ctx, http.MethodPost, testURL, bytes.NewBuffer(bodyBytes))
 		if err != nil {
 			logger.Log.Error().

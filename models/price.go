@@ -18,6 +18,7 @@ type Price struct {
     Room     string `json:"room"`
     Place     string `json:"htPlace"`
     FreightExternal     string `json:"freightExternal"`
+    CrossTour BoolString `json:"crossTour"`
     StateKey int    `json:"stateKey"`
     TourKey int    `json:"tourKey"`
     TownFromKey int  `json:"townFromKey"`

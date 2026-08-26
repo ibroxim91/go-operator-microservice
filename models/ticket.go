@@ -63,6 +63,7 @@ type Ticket struct {
     RoomType               string            `json:"room_type"`
     Place                  string            `json:"place"`
     FreightExternal     string               `json:"freight_external"`
+    CrossTour              BoolString        `json:"crossTour"`
     TravelTime             string            `json:"travel_time"`
     Languages              string            `json:"languages"`
     MinPerson              int               `json:"min_person"`
