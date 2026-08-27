@@ -305,7 +305,8 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 			return nil, false, err
 		}
 		mappedParams["TOWNS"] = strconv.Itoa(townMapping.OperatorTownID)
-	} else if townFromID > 0 {
+	} else if DestinationID > 0 {
+		// Region tanlanganda TOWNS majburiy — bo'sh bo'lsa STATEINC (butun davlat) ga tushmasin
 		townMappings, err := repository.GetTownMappingsByRegion(s.DB, operatorName, DestinationID)
 		log.Println("townMappings for operator: ", operatorName, " regionID: ", DestinationID, " townMappings: ", townMappings)
 		if err != nil {
@@ -316,19 +317,15 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 				Msg("error fetching town mappings by region")
 			return nil, false, nil
 		}
-
-		if len(townMappings) > 0 {
-			operatorTownIDs := make([]string, 0, len(townMappings))
-			for _, mapping := range townMappings {
-				operatorTownIDs = append(operatorTownIDs, strconv.Itoa(mapping.OperatorTownID))
-			}
-			mappedParams["TOWNS"] = strings.Join(operatorTownIDs, ",")
+		if len(townMappings) == 0 {
+			log.Printf("No town mappings for operator: %s, regionID: %d — skip (no country-wide fallback)", operatorName, DestinationID)
+			return nil, false, nil
 		}
-		// else{
-		// 	log.Println("No town mappings found for operator: ", operatorName, " regionID: ", DestinationID)
-		// 	return nil, false, nil
-
-		// }
+		operatorTownIDs := make([]string, 0, len(townMappings))
+		for _, mapping := range townMappings {
+			operatorTownIDs = append(operatorTownIDs, strconv.Itoa(mapping.OperatorTownID))
+		}
+		mappedParams["TOWNS"] = strings.Join(operatorTownIDs, ",")
 	}
 
 	if mealID > 0 {
