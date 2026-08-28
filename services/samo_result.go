@@ -52,12 +52,13 @@ func BuildAsyncSamoResult(results models.ResultResponse) *models.AsyncSamoResult
 	return &models.AsyncSamoResult{
 		Status: true,
 		Data: models.AsyncSamoData{
-			Links:       models.Links{Previous: nil, Next: nil},
-			TotalItems:  totalItems,
-			TotalPages:  pages,
-			PageSize:    pageSize,
-			Total:       results.Total,
-			CurrentPage: page,
+			Links:            models.Links{Previous: nil, Next: nil},
+			TotalItems:       totalItems,
+			TotalPages:       pages,
+			PageSize:         pageSize,
+			Total:            results.Total,
+			CurrentPage:      page,
+			CurrentUsdCourse: results.CurrentUsdCourse,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             tickets,
 				MinPrice:            minPrice,

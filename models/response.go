@@ -1,9 +1,10 @@
 package models
 
 type ResultResponse struct {
-	Prices []*Ticket `json:"prices"`
-	Total  int       `json:"total"`
-	Page   int       `json:"page"`
+	Prices           []*Ticket `json:"prices"`
+	Total            int       `json:"total"`
+	Page             int       `json:"page"`
+	CurrentUsdCourse float64   `json:"current_usd_course"`
 }
 
 type AsyncSamoResult struct {
@@ -12,13 +13,14 @@ type AsyncSamoResult struct {
 }
 
 type AsyncSamoData struct {
-	Links       Links                  `json:"links"`
-	TotalItems  int                    `json:"total_items"`
-	TotalPages  int                    `json:"total_pages"`
-	PageSize    int                    `json:"page_size"`
-	Total       int                    `json:"total"`
-	CurrentPage int                    `json:"current_page"`
-	Results     AsyncSamoResultPayload `json:"results"`
+	Links            Links                  `json:"links"`
+	TotalItems       int                    `json:"total_items"`
+	TotalPages       int                    `json:"total_pages"`
+	PageSize         int                    `json:"page_size"`
+	Total            int                    `json:"total"`
+	CurrentPage      int                    `json:"current_page"`
+	CurrentUsdCourse float64                `json:"current_usd_course"`
+	Results          AsyncSamoResultPayload `json:"results"`
 }
 
 type Links struct {

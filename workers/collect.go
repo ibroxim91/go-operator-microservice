@@ -39,13 +39,20 @@ func CollectResults(ctx context.Context, jobsList []models.Request, workerCount 
 	var allResults []*models.Ticket
 	total := 0
 	page := 1
+	currentUsdCourse := 0.0
 	if len(jobsList) > 0 {
 		page = jobsList[0].Page
+		currentUsdCourse = jobsList[0].CurrentUsdCourse
 	}
 	for res := range results {
 		total += res.Pager.Total * len(res.Prices)
 		allResults = append(allResults, res.Prices...)
 	}
 	log.Println("REsults len ", len(allResults))
-	return models.ResultResponse{Prices: allResults, Total: total, Page: page}
+	return models.ResultResponse{
+		Prices:           allResults,
+		Total:            total,
+		Page:             page,
+		CurrentUsdCourse: currentUsdCourse,
+	}
 }

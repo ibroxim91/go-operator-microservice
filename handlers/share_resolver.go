@@ -148,7 +148,7 @@ func buildSharedTicketResult(
 		searchURL,
 	)
 	ticket.ShareToken = token
-	return buildSingleTicketAsyncResult(ticket, sourceTotalPages), nil
+	return buildSingleTicketAsyncResult(ticket, sourceTotalPages, meta.currentUsdCourse), nil
 }
 
 func findPriceByTourID(prices []models.Price, tourID string) *models.Price {
@@ -242,18 +242,19 @@ func parseShareMetaFromURL(searchURL string) shareSearchMeta {
 	return meta
 }
 
-func buildSingleTicketAsyncResult(ticket *models.Ticket, sourceTotalPages int) *models.AsyncSamoResult {
+func buildSingleTicketAsyncResult(ticket *models.Ticket, sourceTotalPages int, currentUsdCourse float64) *models.AsyncSamoResult {
 	hotels := services.BuildHotelSummaries([]*models.Ticket{ticket})
 
 	return &models.AsyncSamoResult{
 		Status: true,
 		Data: models.AsyncSamoData{
-			Links:       models.Links{Previous: nil, Next: nil},
-			TotalItems:  1,
-			TotalPages:  1,
-			PageSize:    1,
-			Total:       sourceTotalPages,
-			CurrentPage: 1,
+			Links:            models.Links{Previous: nil, Next: nil},
+			TotalItems:       1,
+			TotalPages:       1,
+			PageSize:         1,
+			Total:            sourceTotalPages,
+			CurrentPage:      1,
+			CurrentUsdCourse: currentUsdCourse,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             []*models.Ticket{ticket},
 				MinPrice:            ticket.PriceFull,

@@ -204,6 +204,9 @@ func loadAsyncSamoTicketsResult(
 			for _, ticket := range cachedResult.Data.Results.Tickets {
 				ticket.FromCache = true
 			}
+			if cachedResult.Data.CurrentUsdCourse == 0 && len(jobs) > 0 {
+				cachedResult.Data.CurrentUsdCourse = jobs[0].CurrentUsdCourse
+			}
 			return paginateAsyncSamoResult(ctx, cacheClient, cachedResult, page), nil
 		}
 	}
@@ -234,6 +237,18 @@ func parseRequestedPage(samoParams map[string]string) int {
 		}
 	}
 	return page
+}
+
+func parseUsdCourseParam(value string) float64 {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	rate, err := strconv.ParseFloat(value, 64)
+	if err != nil || rate <= 0 {
+		return 0
+	}
+	return rate
 }
 
 
@@ -313,13 +328,14 @@ func buildStreamPayloadFromAsyncCache(cached *models.AsyncSamoResult, page int) 
 	}
 
 	return StreamPayload{
-		Prices:     tickets[start:end],
-		Hotels:     cached.Data.Results.Hotels,
-		End:        true,
-		Total:      cached.Data.Total,
-		TotalPages: (len(tickets) + 99) / 100,
-		TotalItems: cached.Data.TotalItems,
-		FromCache:  true,
+		Prices:           tickets[start:end],
+		Hotels:           cached.Data.Results.Hotels,
+		End:              true,
+		Total:            cached.Data.Total,
+		TotalPages:       (len(tickets) + 99) / 100,
+		TotalItems:       cached.Data.TotalItems,
+		FromCache:        true,
+		CurrentUsdCourse: cached.Data.CurrentUsdCourse,
 	}
 }
 

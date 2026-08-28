@@ -22,13 +22,14 @@ import (
 )
 
 type StreamPayload struct {
-	Prices     []*models.Ticket      `json:"prices"`
-	Hotels     []models.HotelSummary `json:"hotels"`
-	End        bool                  `json:"end"`
-	Total      int                   `json:"total"`
-	TotalPages int                   `json:"total_pages"`
-	TotalItems int                   `json:"total_items"`
-	FromCache  bool                  `json:"from_cache"`
+	Prices           []*models.Ticket      `json:"prices"`
+	Hotels           []models.HotelSummary `json:"hotels"`
+	End              bool                  `json:"end"`
+	Total            int                   `json:"total"`
+	TotalPages       int                   `json:"total_pages"`
+	TotalItems       int                   `json:"total_items"`
+	FromCache        bool                  `json:"from_cache"`
+	CurrentUsdCourse float64               `json:"current_usd_course"`
 }
 
 func setStreamHeaders(c echo.Context) (http.ResponseWriter, http.Flusher, error) {
@@ -54,6 +55,7 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
 		log.Println("samoParams stram ", samoParams)
+		currentUsdCourse := parseUsdCourseParam(samoParams["current_usd_course"])
 
 		rw, flusher, err := setStreamHeaders(c)
 		if err != nil {
@@ -117,12 +119,13 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 				}
 
 				payload := StreamPayload{
-					Prices:     cached.Tickets[start:end],
-					Hotels:     cached.Hotels,
-					End:        true,
-					Total:      cached.Total,
-					TotalPages: (len(cached.Tickets) + 99) / 100,
-					FromCache:  true,
+					Prices:           cached.Tickets[start:end],
+					Hotels:           cached.Hotels,
+					End:              true,
+					Total:            cached.Total,
+					TotalPages:       (len(cached.Tickets) + 99) / 100,
+					FromCache:        true,
+					CurrentUsdCourse: currentUsdCourse,
 				}
 
 				jsonData, _ := json.Marshal(payload)
@@ -136,14 +139,18 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
+		if currentUsdCourse <= 0 && len(jobs) > 0 {
+			currentUsdCourse = jobs[0].CurrentUsdCourse
+		}
 		if len(jobs) == 0 {
 			payload := StreamPayload{
-				Prices:     []*models.Ticket{},
-				Hotels:     []models.HotelSummary{},
-				End:        true,
-				Total:      0,
-				TotalPages: 0,
-				TotalItems: 0,
+				Prices:           []*models.Ticket{},
+				Hotels:           []models.HotelSummary{},
+				End:              true,
+				Total:            0,
+				TotalPages:       0,
+				TotalItems:       0,
+				CurrentUsdCourse: currentUsdCourse,
 			}
 			jsonData, _ := json.Marshal(payload)
 			fmt.Fprintf(rw, "data: %s\n\n", jsonData)
@@ -225,12 +232,13 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 		}
 
 		finalPayload := StreamPayload{
-			Prices:     []*models.Ticket{},
-			Hotels:     hotels,
-			End:        true,
-			Total:      stremaCount,
-			TotalPages: (stremaCount + 99) / 100,
-			TotalItems: stremaCount,
+			Prices:           []*models.Ticket{},
+			Hotels:           hotels,
+			End:              true,
+			Total:            stremaCount,
+			TotalPages:       (stremaCount + 99) / 100,
+			TotalItems:       stremaCount,
+			CurrentUsdCourse: currentUsdCourse,
 		}
 
 		jsonData, err := json.Marshal(finalPayload)
