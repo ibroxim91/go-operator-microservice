@@ -71,6 +71,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		Bron:              price.Bron,
 		Nights:            price.Nights,
 		Price:             priceStr,
+		OperatorPrice:     strings.TrimSpace(price.Price),
 		PriceFull:         priceValueUsz,
 		RoomType:          price.Room,
 		Place:             price.Place,

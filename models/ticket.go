@@ -33,6 +33,7 @@ type Ticket struct {
     RequestUrl     string         `json:"-"`
     Nights         int            `json:"nights"`
     Price          string         `json:"price"`
+    OperatorPrice  string         `json:"operator_price"`
     PriceFull      int            `json:"price_full"`
     Operator       string         `json:"operator"`
     HotelDBID      int            `json:"hotel_db_id"`
