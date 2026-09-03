@@ -24,6 +24,33 @@ import (
 
 
 
+// Customer bonus: 3% of operator USD price is discounted for the client
+// (from commission), then converted with CB rate + 200 UZS.
+const (
+	customerBonusRate   = 0.03
+	usdCourseStreetAddon = 200.0
+)
+
+// ConvertOperatorPriceToUzs applies:
+// 1) operator USD − 3% client bonus
+// 2) remaining × (CB course + 200)
+func ConvertOperatorPriceToUzs(operatorUsd, currentUsdCourse float64) int {
+	if operatorUsd <= 0 || currentUsdCourse <= 0 {
+		return 0
+	}
+	discountedUsd := operatorUsd * (1 - customerBonusRate)
+	adjustedCourse := currentUsdCourse + usdCourseStreetAddon
+	return int(math.Round(discountedUsd * adjustedCourse))
+}
+
+func formatPriceMillion(priceValueUsz int) string {
+	mln := float64(priceValueUsz) / 1_000_000
+	if math.Mod(mln, 1) == 0 {
+		return fmt.Sprintf("%d", int(mln))
+	}
+	return fmt.Sprintf("%.1f", mln)
+}
+
 func TransformSamoPriceToTicket(price models.Price, departure, operator, country, countrImageUrl string,
 	currentUsdCourse float64, destinationID, departureID, countryID int, hotelService *services.HotelService, 
 	fromCache bool, requestURL string) *models.Ticket {
@@ -33,20 +60,8 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		priceValue = val
 	}
 
-	
-
-	// kursga doimiy 200 qo‘shib hisoblash
-	adjustedCourse := currentUsdCourse + 200
-	priceValueUsz := int(priceValue * adjustedCourse)
-
-	mln := float64(priceValueUsz) / 1_000_000
-
-	var priceStr string
-	if math.Mod(mln, 1) == 0 {
-		priceStr = fmt.Sprintf("%d", int(mln))
-	} else {
-		priceStr = fmt.Sprintf("%.1f", mln)
-	}
+	priceValueUsz := ConvertOperatorPriceToUzs(priceValue, currentUsdCourse)
+	priceStr := formatPriceMillion(priceValueUsz)
 
 
 	hotelName := price.Hotel
