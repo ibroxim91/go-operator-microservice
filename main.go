@@ -50,6 +50,12 @@ func main() {
 			Msg("failed to preload hotel mappings")
 	}
 
+	if err := services.PreloadCountryVisaMap(conn); err != nil {
+		logger.Log.Warn().
+			Err(err).
+			Msg("failed to preload country visa map")
+	}
+
 	services.StartHotelMappingWorkers(ctx, conn, services.HotelMappingWorkerCount())
 
 	hotelService := services.NewHotelService(conn)
@@ -62,6 +68,7 @@ func main() {
 	samoService := services.NewSamoService(conn, cacheClient)
 
 	go scheduler.StartPopularDestinationsScheduler(ctx, conn, samoService, cacheClient, hotelService)
+	go scheduler.StartHomeOffersScheduler(ctx, conn, samoService, cacheClient, hotelService)
 
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
 	if frontendOrigin == "" {

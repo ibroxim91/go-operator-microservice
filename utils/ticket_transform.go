@@ -115,7 +115,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		TicketImages:    countrImageUrl,
 		TicketAmenities: []string{},
 		Badge:           []string{},
-		VisaRequired:    false,
+		VisaRequired:    services.IsCountryVisaRequired(countryID),
 		FromCache:       fromCache,
 		IsLiked:         false,
 		TicketHotel:     hotel,

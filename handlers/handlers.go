@@ -24,6 +24,7 @@ import (
 func RegisterRoutes(e *echo.Echo, ctx context.Context, hotelService *services.HotelService, samoService *services.SamoService, cacheClient *cache.RedisCache) {
 	e.POST("/search-tours", makeSearchToursHandler(ctx, hotelService))
 	e.GET("/async-samo/tickets", makeAsyncSamoTicketsHandler(ctx, hotelService, samoService, cacheClient))
+	e.GET("/async-samo/home-offers", makeHomeOffersHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/stream-samo/tickets", makeAsyncSamoTicketsStreamHandler(ctx, hotelService, samoService, cacheClient))
 }
 
