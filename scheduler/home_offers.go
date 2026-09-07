@@ -20,7 +20,7 @@ import (
 const (
 	defaultHomeOffersSchedulerInterval = 3 * time.Hour
 	defaultHomeOffersCollectWorkers    = 5
-	homeOffersSearchAdults             = "1"
+	homeOffersSearchAdults             = "2"
 )
 
 var homeOffersWarmupMu sync.Mutex
