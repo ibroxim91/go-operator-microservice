@@ -228,7 +228,7 @@ func buildHomeOffersSearchParams(
 		"CHECKIN_BEG":     dateFrom,
 		"CHECKIN_END":     dateTo,
 		"NIGHTS_FROM":     "",
-		"NIGHTS_LIST":     "2,3,4,5,6,7",
+		"NIGHTS_LIST":     "7,8,9,10,11,12,13,14",
 		"NIGHTS_TILL":     "",
 		"SORT":            "ASC",
 		"TOWNFROMINC":     strconv.Itoa(dest.RegionID),

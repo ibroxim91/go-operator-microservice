@@ -252,7 +252,7 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 	}
 	if params["NIGHTS_LIST"] == "" {
 		params["NIGHTS_FROM"] = ""
-		params["NIGHTS_LIST"] = "2,3,4,5,6,7"
+		params["NIGHTS_LIST"] = "7,8,9,10,11,12,13,14"
 	}
 
 	return params, false, userSpecifiedDate, nil
