@@ -112,6 +112,11 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 	currentUsdCourse := getTrimmed("current_usd_course", "")
 	cheapest := strings.EqualFold(getTrimmed("cheapest", "false"), "true")
 	mostExpensive := strings.EqualFold(getTrimmed("most_expensive", "false"), "true")
+	recommendedOnly := strings.EqualFold(getTrimmed("recommended", "false"), "true")
+	if recommendedOnly {
+		cheapest = false
+		mostExpensive = false
+	}
 
 	if adults == "" || parsePositiveInt(adults) <= 0 {
 		adults = "1"
@@ -250,6 +255,13 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 	if mostExpensive {
 		params["SORT"] = "DESC"
 	}
+	if recommendedOnly {
+		params["recommended"] = "true"
+	} else {
+		params["recommended"] = "false"
+	}
+	params["cheapest"] = strconv.FormatBool(cheapest)
+	params["most_expensive"] = strconv.FormatBool(mostExpensive)
 	if params["NIGHTS_LIST"] == "" {
 		params["NIGHTS_FROM"] = ""
 		params["NIGHTS_LIST"] = "7,8,9,10,11,12,13,14"

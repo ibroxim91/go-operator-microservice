@@ -175,13 +175,15 @@ func loadPopularDestAsyncResult(
 		return nil, nil
 	}
 
-	return paginatePopularDestAsyncResult(ctx, cacheClient, sliced, page), nil
+	return paginatePopularDestAsyncResult(ctx, cacheClient, sliced, page, services.ParseTicketSortMode(samoParams)), nil
 }
 
-func paginatePopularDestAsyncResult(ctx context.Context, cacheClient *cache.RedisCache, response *models.AsyncSamoResult, page int) *models.AsyncSamoResult {
+func paginatePopularDestAsyncResult(ctx context.Context, cacheClient *cache.RedisCache, response *models.AsyncSamoResult, page int, mode services.TicketSortMode) *models.AsyncSamoResult {
 	totalFound := response.Data.TotalItems
-	paginated := paginateAsyncSamoResult(ctx, cacheClient, response, page)
-	paginated.Data.TotalItems = totalFound
+	paginated := paginateAsyncSamoResult(ctx, cacheClient, response, page, mode)
+	if !mode.RecommendedOnly {
+		paginated.Data.TotalItems = totalFound
+	}
 	return paginated
 }
 
@@ -195,6 +197,7 @@ func loadAsyncSamoTicketsResult(
 	skipLegacyCache bool,
 ) (*models.AsyncSamoResult, error) {
 	page := parseRequestedPage(samoParams)
+	sortMode := services.ParseTicketSortMode(samoParams)
 
 	if !skipLegacyCache {
 		cachedResult, err := cacheClient.GetCachedAsyncResult(ctx, cacheKey)
@@ -208,7 +211,7 @@ func loadAsyncSamoTicketsResult(
 			if cachedResult.Data.CurrentUsdCourse == 0 && len(jobs) > 0 {
 				cachedResult.Data.CurrentUsdCourse = jobs[0].CurrentUsdCourse
 			}
-			return paginateAsyncSamoResult(ctx, cacheClient, cachedResult, page), nil
+			return paginateAsyncSamoResult(ctx, cacheClient, cachedResult, page, sortMode), nil
 		}
 	}
 
@@ -224,7 +227,7 @@ func loadAsyncSamoTicketsResult(
 		}
 	}
 
-	return paginateAsyncSamoResult(ctx, cacheClient, response, page), nil
+	return paginateAsyncSamoResult(ctx, cacheClient, response, page, sortMode), nil
 }
 
 func parseRequestedPage(samoParams map[string]string) int {
@@ -252,12 +255,12 @@ func parseUsdCourseParam(value string) float64 {
 	return rate
 }
 
-
-
-func paginateAsyncSamoResult(ctx context.Context, cacheClient *cache.RedisCache, response *models.AsyncSamoResult, page int) *models.AsyncSamoResult {
+func paginateAsyncSamoResult(ctx context.Context, cacheClient *cache.RedisCache, response *models.AsyncSamoResult, page int, mode services.TicketSortMode) *models.AsyncSamoResult {
 	const pageSize = 100
 
-	fullTickets := response.Data.Results.Tickets
+	fullTickets := services.ApplyTicketSortMode(response.Data.Results.Tickets, mode)
+	response.Data.Results.Tickets = fullTickets
+	response.Data.Results.RecommendedTickets = services.FilterRecommendedTickets(fullTickets)
 	totalItems := len(fullTickets)
 	start := (page - 1) * pageSize
 	if start < 0 {
@@ -285,6 +288,7 @@ func paginateAsyncSamoResult(ctx context.Context, cacheClient *cache.RedisCache,
 	response.Data.CurrentPage = page
 	response.Data.Results.Tickets = fullTickets[start:end]
 	cache.ApplyShareTokensToTickets(ctx, cacheClient, response.Data.Results.Tickets)
+	cache.ApplyShareTokensToTickets(ctx, cacheClient, response.Data.Results.RecommendedTickets)
 	return response
 }
 
@@ -300,6 +304,7 @@ func buildEmptyAsyncSamoResult(page int) *models.AsyncSamoResult {
 			CurrentPage: page,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             []*models.Ticket{},
+				RecommendedTickets:  []*models.Ticket{},
 				MinPrice:            0,
 				MaxPrice:            0,
 				Hotels:              []models.HotelSummary{},

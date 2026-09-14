@@ -72,7 +72,7 @@ func makeHomeOffersHandler(
 			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
 		}
 
-		return c.JSON(http.StatusOK, paginateAsyncSamoResult(ctx, cacheClient, filtered, page))
+		return c.JSON(http.StatusOK, paginateAsyncSamoResult(ctx, cacheClient, filtered, page, services.TicketSortMode{}))
 	}
 }
 

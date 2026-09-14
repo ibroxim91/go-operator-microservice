@@ -283,7 +283,8 @@ func (r *RedisCache) GetOrSetCachedResponse(ctx context.Context, key string, ttl
 func GenerateCacheKey(params map[string]string) string {
 	keys := make([]string, 0, len(params))
 	for key := range params {
-		if key == "PRICEPAGE" {
+		switch key {
+		case "PRICEPAGE", "recommended", "cheapest", "most_expensive":
 			continue
 		}
 		keys = append(keys, key)

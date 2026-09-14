@@ -74,6 +74,7 @@ func BuildPopularDestAsyncResult(
 			CurrentPage: 1,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             finalTickets,
+				RecommendedTickets:  FilterRecommendedTickets(finalTickets),
 				MinPrice:            minPrice,
 				MaxPrice:            maxPrice,
 				Hotels:              BuildHotelSummaries(finalTickets),
@@ -139,6 +140,7 @@ func FilterPopularDestAsyncResult(
 			CurrentPage: cached.Data.CurrentPage,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             tickets,
+				RecommendedTickets:  FilterRecommendedTickets(tickets),
 				MinPrice:            minPrice,
 				MaxPrice:            maxPrice,
 				Hotels:              BuildHotelSummaries(tickets),

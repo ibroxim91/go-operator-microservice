@@ -30,6 +30,7 @@ type Links struct {
 
 type AsyncSamoResultPayload struct {
 	Tickets             []*Ticket      `json:"tickets"`
+	RecommendedTickets  []*Ticket      `json:"recommended_tickets"`
 	MinPrice            int            `json:"min_price"`
 	MaxPrice            int            `json:"max_price"`
 	Hotels              []HotelSummary `json:"hotels"`

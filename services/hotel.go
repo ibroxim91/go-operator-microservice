@@ -206,7 +206,7 @@ func PreloadHotelMappings(db *sql.DB) error {
 
 func PreloadHotelsCache(db *sql.DB) error {
 	cacheOnce.Do(func() {
-		query := `SELECT id, name, country_id FROM api_hotel`
+		query := `SELECT id, name, country_id, is_recommended FROM api_hotel`
 		dbQueryCounter++
 		rows, err := db.Query(query)
 		if err != nil {
@@ -217,14 +217,19 @@ func PreloadHotelsCache(db *sql.DB) error {
 
 		tempCache := make(map[int][]cache.Hotel)
 		tempByID := make(map[int]cache.Hotel)
+		tempRecommended := make(map[int]struct{})
 		for rows.Next() {
 			var h cache.Hotel
 			var countryID int
-			if err := rows.Scan(&h.ID, &h.Name, &countryID); err != nil {
+			var isRecommended bool
+			if err := rows.Scan(&h.ID, &h.Name, &countryID, &isRecommended); err != nil {
 				continue
 			}
 			tempByID[h.ID] = h
 			tempCache[countryID] = append(tempCache[countryID], h)
+			if isRecommended {
+				tempRecommended[h.ID] = struct{}{}
+			}
 		}
 		if err := rows.Err(); err != nil {
 			cacheErr = err
@@ -235,6 +240,7 @@ func PreloadHotelsCache(db *sql.DB) error {
 		hotelsCache = tempCache
 		cache.HotelByIDCache = tempByID
 		cacheMu.Unlock()
+		cache.SetRecommendedHotelIDs(tempRecommended)
 	})
 
 	return cacheErr

@@ -119,6 +119,7 @@ func BuildHomeOffersAsyncResult(tickets []*models.Ticket, totalFound int) *model
 			CurrentPage: 1,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             selected,
+				RecommendedTickets:  FilterRecommendedTickets(selected),
 				MinPrice:            minPrice,
 				MaxPrice:            maxPrice,
 				Hotels:              BuildHotelSummaries(selected),
@@ -176,6 +177,7 @@ func CloneHomeOffersResult(cached *models.AsyncSamoResult, visaRequired *bool) *
 			CurrentPage: 1,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             marked,
+				RecommendedTickets:  FilterRecommendedTickets(marked),
 				MinPrice:            minPrice,
 				MaxPrice:            maxPrice,
 				Hotels:              BuildHotelSummaries(marked),

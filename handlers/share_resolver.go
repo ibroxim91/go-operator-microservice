@@ -257,6 +257,7 @@ func buildSingleTicketAsyncResult(ticket *models.Ticket, sourceTotalPages int, c
 			CurrentUsdCourse: currentUsdCourse,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             []*models.Ticket{ticket},
+				RecommendedTickets:  services.FilterRecommendedTickets([]*models.Ticket{ticket}),
 				MinPrice:            ticket.PriceFull,
 				MaxPrice:            ticket.PriceFull,
 				Hotels:              hotels,
