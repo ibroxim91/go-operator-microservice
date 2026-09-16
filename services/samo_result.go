@@ -17,9 +17,10 @@ const recommendedPriceBuckets = 3
 
 // TicketSortMode controls in-memory ordering after search results are collected.
 type TicketSortMode struct {
-	Cheapest        bool
-	MostExpensive   bool
-	RecommendedOnly bool
+	Cheapest                 bool
+	MostExpensive            bool
+	RecommendedOnly          bool
+	SkipRecommendedInterleave bool // home-offers: keep price order, no R/N/N/N boost
 }
 
 func ParseTicketSortMode(params map[string]string) TicketSortMode {
@@ -180,7 +181,18 @@ func lockRecommendedBadges(ordered, recommendedSlots []*models.Ticket) {
 // ApplyTicketSortMode flags recommended hotels and builds the display order without extra operator requests.
 // Default / price sorts: diversify recommended by price, then strict R + 3N interleave.
 // Recommended-only: diversified recommended list.
+// SkipRecommendedInterleave: price sort only (used by home-offers / hot tours).
 func ApplyTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*models.Ticket {
+	if mode.SkipRecommendedInterleave {
+		sortTicketsByPrice(tickets, mode.MostExpensive)
+		for _, ticket := range tickets {
+			if ticket != nil {
+				ticket.IsRecommended = false
+			}
+		}
+		return tickets
+	}
+
 	MarkRecommendedFlags(tickets)
 
 	if mode.RecommendedOnly {

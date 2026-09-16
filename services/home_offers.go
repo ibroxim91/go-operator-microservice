@@ -91,6 +91,7 @@ func BuildHomeOffersAsyncResult(tickets []*models.Ticket, totalFound int) *model
 	selected := SelectHomeOfferTickets(tickets)
 	for _, ticket := range selected {
 		ticket.FromCache = true
+		ticket.IsRecommended = false
 	}
 
 	minPrice, maxPrice := ticketPriceRange(selected)
@@ -119,7 +120,7 @@ func BuildHomeOffersAsyncResult(tickets []*models.Ticket, totalFound int) *model
 			CurrentPage: 1,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             selected,
-				RecommendedTickets:  FilterRecommendedTickets(selected),
+				RecommendedTickets:  []*models.Ticket{},
 				MinPrice:            minPrice,
 				MaxPrice:            maxPrice,
 				Hotels:              BuildHotelSummaries(selected),
@@ -149,6 +150,7 @@ func CloneHomeOffersResult(cached *models.AsyncSamoResult, visaRequired *bool) *
 	for _, ticket := range marked {
 		if ticket != nil {
 			ticket.FromCache = true
+			ticket.IsRecommended = false
 		}
 	}
 
@@ -177,7 +179,7 @@ func CloneHomeOffersResult(cached *models.AsyncSamoResult, visaRequired *bool) *
 			CurrentPage: 1,
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             marked,
-				RecommendedTickets:  FilterRecommendedTickets(marked),
+				RecommendedTickets:  []*models.Ticket{},
 				MinPrice:            minPrice,
 				MaxPrice:            maxPrice,
 				Hotels:              BuildHotelSummaries(marked),

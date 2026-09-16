@@ -95,6 +95,28 @@ func TestInterleaveNeverAdjacentRInPattern(t *testing.T) {
 	}
 }
 
+func TestApplyTicketSortModeSkipRecommendedInterleave(t *testing.T) {
+	tickets := []*models.Ticket{
+		{ID: 1, PriceFull: 300, HotelDBID: 1, IsRecommended: true},
+		{ID: 2, PriceFull: 100, HotelDBID: 2, IsRecommended: false},
+		{ID: 3, PriceFull: 200, HotelDBID: 3, IsRecommended: true},
+	}
+
+	out := ApplyTicketSortMode(tickets, TicketSortMode{SkipRecommendedInterleave: true})
+	wantIDs := []int{2, 3, 1}
+	if len(out) != len(wantIDs) {
+		t.Fatalf("len=%d want %d ids=%v", len(out), len(wantIDs), ticketIDs(out))
+	}
+	for i, id := range wantIDs {
+		if out[i].ID != id {
+			t.Fatalf("idx %d: got id %d want %d (price order broken)", i, out[i].ID, id)
+		}
+		if out[i].IsRecommended {
+			t.Fatalf("idx %d: is_recommended should be false for home-offers", i)
+		}
+	}
+}
+
 func ticketIDs(tickets []*models.Ticket) []int {
 	ids := make([]int, len(tickets))
 	for i, ticket := range tickets {

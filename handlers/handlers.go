@@ -260,7 +260,11 @@ func paginateAsyncSamoResult(ctx context.Context, cacheClient *cache.RedisCache,
 
 	fullTickets := services.ApplyTicketSortMode(response.Data.Results.Tickets, mode)
 	response.Data.Results.Tickets = fullTickets
-	response.Data.Results.RecommendedTickets = services.FilterRecommendedTickets(fullTickets)
+	if mode.SkipRecommendedInterleave {
+		response.Data.Results.RecommendedTickets = []*models.Ticket{}
+	} else {
+		response.Data.Results.RecommendedTickets = services.FilterRecommendedTickets(fullTickets)
+	}
 	totalItems := len(fullTickets)
 	start := (page - 1) * pageSize
 	if start < 0 {

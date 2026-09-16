@@ -72,7 +72,14 @@ func makeHomeOffersHandler(
 			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
 		}
 
-		return c.JSON(http.StatusOK, paginateAsyncSamoResult(ctx, cacheClient, filtered, page, services.TicketSortMode{}))
+		// Hot / visa home-offers must stay cheapest-first; do not boost recommended hotels.
+		return c.JSON(http.StatusOK, paginateAsyncSamoResult(
+			ctx,
+			cacheClient,
+			filtered,
+			page,
+			services.TicketSortMode{SkipRecommendedInterleave: true},
+		))
 	}
 }
 
