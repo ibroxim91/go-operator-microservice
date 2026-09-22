@@ -25,6 +25,7 @@ func RegisterRoutes(e *echo.Echo, ctx context.Context, hotelService *services.Ho
 	e.POST("/search-tours", makeSearchToursHandler(ctx, hotelService))
 	e.GET("/async-samo/tickets", makeAsyncSamoTicketsHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/async-samo/home-offers", makeHomeOffersHandler(ctx, hotelService, samoService, cacheClient))
+	e.GET("/async-samo/home-offers/recommended", makeHomeOffersRecommendedHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/stream-samo/tickets", makeAsyncSamoTicketsStreamHandler(ctx, hotelService, samoService, cacheClient))
 }
 

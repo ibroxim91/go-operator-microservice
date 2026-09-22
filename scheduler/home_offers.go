@@ -98,6 +98,47 @@ func WarmHomeOffersCache(
 	return scheduler.buildAndStore(ctx)
 }
 
+// WarmRecommendedHomeOffersCache returns recommended home offers cache,
+// deriving from home-offers warmup when the dedicated key is missing.
+func WarmRecommendedHomeOffersCache(
+	ctx context.Context,
+	db *sql.DB,
+	samoService *services.SamoService,
+	cacheClient *cache.RedisCache,
+	hotelService *services.HotelService,
+) (*models.AsyncSamoResult, error) {
+	if cached, hit, err := cacheClient.LookupHomeOffersCache(ctx, cache.HomeOffersRecommendedCacheKey); err == nil && hit && cached != nil {
+		return cached, nil
+	}
+
+	// Rebuild both caches via home-offers warmup (also writes recommended key).
+	if _, err := WarmHomeOffersCache(ctx, db, samoService, cacheClient, hotelService); err != nil {
+		return nil, err
+	}
+
+	cached, hit, err := cacheClient.LookupHomeOffersCache(ctx, cache.HomeOffersRecommendedCacheKey)
+	if err != nil {
+		return nil, err
+	}
+	if hit && cached != nil {
+		return cached, nil
+	}
+
+	// Fallback: derive from home_offers tickets if recommended key still missing.
+	homeCached, homeHit, homeErr := cacheClient.LookupHomeOffersCache(ctx, cache.HomeOffersCacheKey)
+	if homeErr != nil {
+		return nil, homeErr
+	}
+	if !homeHit || homeCached == nil {
+		return nil, nil
+	}
+
+	derived := services.BuildRecommendedHomeOffersAsyncResult(homeCached.Data.Results.Tickets, homeCached.Data.TotalItems)
+	cache.ApplyShareTokensToTickets(ctx, cacheClient, derived.Data.Results.Tickets)
+	_ = cacheClient.SetHomeOffersCache(ctx, cache.HomeOffersRecommendedCacheKey, derived, cache.HomeOffersCacheTTL)
+	return derived, nil
+}
+
 func (s *HomeOffersScheduler) runOnce(ctx context.Context) {
 	homeOffersWarmupMu.Lock()
 	defer homeOffersWarmupMu.Unlock()
@@ -109,6 +150,9 @@ func (s *HomeOffersScheduler) runOnce(ctx context.Context) {
 func (s *HomeOffersScheduler) buildAndStore(ctx context.Context) (*models.AsyncSamoResult, error) {
 	startedAt := time.Now()
 	services.RefreshCountryVisaMap(s.db)
+	if err := services.PreloadHotelsCache(s.db); err != nil {
+		logger.Log.Warn().Err(err).Msg("failed to preload hotels cache before home offers warmup")
+	}
 
 	destinations, err := repository.GetPopularDestinations(s.db)
 	if err != nil {
@@ -161,6 +205,25 @@ func (s *HomeOffersScheduler) buildAndStore(ctx context.Context) (*models.AsyncS
 		cache.HomeOffersCacheTTL,
 	); err != nil {
 		return nil, err
+	}
+
+	recommendedResult := services.BuildRecommendedHomeOffersAsyncResult(allTickets, totalFound)
+	cache.ApplyShareTokensToTickets(ctx, s.cacheClient, recommendedResult.Data.Results.Tickets)
+	if err := s.cacheClient.SetHomeOffersCache(
+		ctx,
+		cache.HomeOffersRecommendedCacheKey,
+		recommendedResult,
+		cache.HomeOffersCacheTTL,
+	); err != nil {
+		logger.Log.Warn().
+			Err(err).
+			Str("key", cache.HomeOffersRecommendedCacheKey).
+			Msg("failed to store recommended home offers cache")
+	} else {
+		logger.Log.Info().
+			Int("tickets", len(recommendedResult.Data.Results.Tickets)).
+			Str("key", cache.HomeOffersRecommendedCacheKey).
+			Msg("recommended home offers cache stored")
 	}
 
 	logger.Log.Info().

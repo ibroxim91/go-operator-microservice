@@ -7,6 +7,7 @@ import (
 )
 
 const homeOffersMaxTownsPerRegion = 3
+const homeOffersRecommendedMaxTickets = 16
 
 // SelectHomeOfferTickets keeps 1 cheapest ticket per town and at most
 // homeOffersMaxTownsPerRegion towns per destination region.
@@ -58,6 +59,32 @@ func SelectHomeOfferTickets(tickets []*models.Ticket) []*models.Ticket {
 	sort.Slice(selected, func(i, j int) bool {
 		return selected[i].PriceFull < selected[j].PriceFull
 	})
+	return selected
+}
+
+// SelectRecommendedHomeOfferTickets keeps 1 cheapest ticket per recommended
+// hotel and returns up to homeOffersRecommendedMaxTickets, cheapest-first.
+func SelectRecommendedHomeOfferTickets(tickets []*models.Ticket) []*models.Ticket {
+	if len(tickets) == 0 {
+		return nil
+	}
+
+	marked := make([]*models.Ticket, len(tickets))
+	copy(marked, tickets)
+	MarkRecommendedFlags(marked)
+
+	selected := pickCheapestPerRecommendedHotel(marked)
+	sortTicketsByPrice(selected, false)
+
+	if len(selected) > homeOffersRecommendedMaxTickets {
+		selected = selected[:homeOffersRecommendedMaxTickets]
+	}
+	for _, ticket := range selected {
+		if ticket != nil {
+			ticket.FromCache = true
+			ticket.IsRecommended = true
+		}
+	}
 	return selected
 }
 
@@ -121,6 +148,51 @@ func BuildHomeOffersAsyncResult(tickets []*models.Ticket, totalFound int) *model
 			Results: models.AsyncSamoResultPayload{
 				Tickets:             selected,
 				RecommendedTickets:  []*models.Ticket{},
+				MinPrice:            minPrice,
+				MaxPrice:            maxPrice,
+				Hotels:              BuildHotelSummaries(selected),
+				HotelAmenities:      []string{},
+				HotelFeaturesByType: []string{},
+				HotelTypes:          []string{},
+				TopDestinations:     []string{},
+				TopDuration:         []string{},
+			},
+		},
+	}
+}
+
+// BuildRecommendedHomeOffersAsyncResult builds AsyncSamoResult for recommended hotels.
+func BuildRecommendedHomeOffersAsyncResult(tickets []*models.Ticket, totalFound int) *models.AsyncSamoResult {
+	ApplyTicketVisaFlags(tickets)
+	selected := SelectRecommendedHomeOfferTickets(tickets)
+
+	minPrice, maxPrice := ticketPriceRange(selected)
+	pageSize := 100
+	totalItems := totalFound
+	if totalItems == 0 {
+		totalItems = len(selected)
+	}
+
+	totalPages := 0
+	if len(selected) > 0 {
+		totalPages = len(selected) / pageSize
+		if len(selected)%pageSize != 0 {
+			totalPages++
+		}
+	}
+
+	return &models.AsyncSamoResult{
+		Status: true,
+		Data: models.AsyncSamoData{
+			Links:       models.Links{Previous: nil, Next: nil},
+			TotalItems:  totalItems,
+			TotalPages:  totalPages,
+			PageSize:    pageSize,
+			Total:       len(selected),
+			CurrentPage: 1,
+			Results: models.AsyncSamoResultPayload{
+				Tickets:             selected,
+				RecommendedTickets:  selected,
 				MinPrice:            minPrice,
 				MaxPrice:            maxPrice,
 				Hotels:              BuildHotelSummaries(selected),
