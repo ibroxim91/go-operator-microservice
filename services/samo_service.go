@@ -229,10 +229,10 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 		}
 	}
 	if hotelRating != "" {
-		params["STARS"] = normalizeStars(hotelRating)
+		params["STARS"] = normalizeStarsList(hotelRating)
 	}
 	if rating != "" {
-		params["STARS"] = normalizeStars(rating)
+		params["STARS"] = normalizeStarsList(rating)
 	}
 	if durationDays != "" {
 		params["NIGHTS_LIST"] = durationDays
@@ -273,10 +273,10 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 func (s *SamoService) MapParams(mappedParams map[string]string, operatorName string) (map[string]string, bool, error) {
 	stateID, _ := strconv.Atoi(mappedParams["STATEINC"])
 	townFromID, _ := strconv.Atoi(mappedParams["TOWNFROMINC"])
-	townID, _ := strconv.Atoi(mappedParams["TOWNS"])
+	townIDs := splitCSV(mappedParams["TOWNS"])
 	DestinationID, _ := strconv.Atoi(mappedParams["destination"])
-	mealID, _ := strconv.Atoi(mappedParams["MEALS"])
-	ratingVal := mappedParams["STARS"]
+	mealIDs := splitCSV(mappedParams["MEALS"])
+	ratingVals := splitCSV(mappedParams["STARS"])
 
 	if stateID > 0 {
 		countryMapping, err := repository.GetCountryMapping(s.DB, operatorName, stateID)
@@ -307,16 +307,28 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 		mappedParams["TOWNFROMINC"] = strconv.Itoa(regionMapping.OperatorTownID)
 	}
 
-	if townID > 0 {
-		townMapping, err := repository.GetTownMapping(s.DB, operatorName, townID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				log.Printf("No town mapping found for operator: %s, townID: %d", operatorName, townID)
-				return nil, false, nil
+	if len(townIDs) > 0 {
+		operatorTownIDs := make([]string, 0, len(townIDs))
+		for _, rawID := range townIDs {
+			townID, err := strconv.Atoi(rawID)
+			if err != nil || townID <= 0 {
+				continue
 			}
-			return nil, false, err
+			townMapping, err := repository.GetTownMapping(s.DB, operatorName, townID)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					log.Printf("No town mapping found for operator: %s, townID: %d", operatorName, townID)
+					continue
+				}
+				return nil, false, err
+			}
+			operatorTownIDs = append(operatorTownIDs, strconv.Itoa(townMapping.OperatorTownID))
 		}
-		mappedParams["TOWNS"] = strconv.Itoa(townMapping.OperatorTownID)
+		if len(operatorTownIDs) == 0 {
+			log.Printf("No town mappings for operator: %s, towns: %v", operatorName, townIDs)
+			return nil, false, nil
+		}
+		mappedParams["TOWNS"] = strings.Join(operatorTownIDs, ",")
 	} else if DestinationID > 0 {
 		// Region tanlanganda TOWNS majburiy — bo'sh bo'lsa STATEINC (butun davlat) ga tushmasin
 		townMappings, err := repository.GetTownMappingsByRegion(s.DB, operatorName, DestinationID)
@@ -340,28 +352,56 @@ func (s *SamoService) MapParams(mappedParams map[string]string, operatorName str
 		mappedParams["TOWNS"] = strings.Join(operatorTownIDs, ",")
 	}
 
-	if mealID > 0 {
-		mealMapping, err := repository.GetMealPlanMapping(s.DB, operatorName, mealID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				log.Printf("No meal plan mapping found for operator: %s, mealID: %d", operatorName, mealID)
-				return nil, false, nil
+	if len(mealIDs) > 0 {
+		mealKeys := make([]string, 0, len(mealIDs))
+		for _, rawID := range mealIDs {
+			mealID, err := strconv.Atoi(rawID)
+			if err != nil || mealID <= 0 {
+				continue
 			}
-			return nil, false, err
+			mealMapping, err := repository.GetMealPlanMapping(s.DB, operatorName, mealID)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					log.Printf("No meal plan mapping found for operator: %s, mealID: %d", operatorName, mealID)
+					continue
+				}
+				return nil, false, err
+			}
+			if mealMapping.MealKey != "" {
+				mealKeys = append(mealKeys, mealMapping.MealKey)
+			}
 		}
-		mappedParams["MEALS"] = mealMapping.MealKey
+		if len(mealKeys) == 0 {
+			log.Printf("No meal plan mappings for operator: %s, meals: %v", operatorName, mealIDs)
+			return nil, false, nil
+		}
+		mappedParams["MEALS"] = strings.Join(mealKeys, ",")
 	}
 
-	if ratingVal != "" {
-		ratingMapping, err := repository.GetRatingMapping(s.DB, operatorName, ratingVal)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				log.Printf("No rating mapping found for operator: %s, ratingVal: %s", operatorName, ratingVal)
-				return nil, false, nil
+	if len(ratingVals) > 0 {
+		ratingKeys := make([]string, 0, len(ratingVals))
+		for _, ratingVal := range ratingVals {
+			normalized := normalizeStars(ratingVal)
+			if normalized == "" {
+				continue
 			}
-			return nil, false, err
+			ratingMapping, err := repository.GetRatingMapping(s.DB, operatorName, normalized)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					log.Printf("No rating mapping found for operator: %s, ratingVal: %s", operatorName, normalized)
+					continue
+				}
+				return nil, false, err
+			}
+			if ratingMapping.RatingKey != "" {
+				ratingKeys = append(ratingKeys, ratingMapping.RatingKey)
+			}
 		}
-		mappedParams["STARS"] = ratingMapping.RatingKey
+		if len(ratingKeys) == 0 {
+			log.Printf("No rating mappings for operator: %s, ratings: %v", operatorName, ratingVals)
+			return nil, false, nil
+		}
+		mappedParams["STARS"] = strings.Join(ratingKeys, ",")
 	}
 
 	return mappedParams, true, nil
@@ -573,6 +613,42 @@ func normalizeStars(value string) string {
 		return trimmed + ".0"
 	}
 	return trimmed
+}
+
+func splitCSV(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+func normalizeStarsList(value string) string {
+	parts := splitCSV(value)
+	if len(parts) == 0 {
+		return ""
+	}
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		normalized := normalizeStars(part)
+		if normalized != "" {
+			out = append(out, normalized)
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 func copyParams(src map[string]string) map[string]string {
