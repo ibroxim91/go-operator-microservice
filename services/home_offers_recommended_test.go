@@ -39,6 +39,33 @@ func TestSelectRecommendedHomeOfferTickets(t *testing.T) {
 	}
 }
 
+func TestSelectRecommendedHomeOfferTicketsSeparatesSameName(t *testing.T) {
+	cache.SetRecommendedHotelIDs(map[int]struct{}{
+		1: {},
+		2: {},
+		3: {},
+	})
+
+	sameName := []models.TicketHotel{{Name: "Royal Hotel"}}
+	otherName := []models.TicketHotel{{Name: "Palm Hotel"}}
+	tickets := []*models.Ticket{
+		{ID: 1, HotelDBID: 1, PriceFull: 1_000_000, TicketHotel: sameName},
+		{ID: 2, HotelDBID: 2, PriceFull: 1_100_000, TicketHotel: sameName},
+		{ID: 3, HotelDBID: 3, PriceFull: 1_200_000, TicketHotel: otherName},
+	}
+
+	selected := SelectRecommendedHomeOfferTickets(tickets)
+	if len(selected) != 3 {
+		t.Fatalf("expected 3 tickets, got %d", len(selected))
+	}
+	if selected[0].HotelDBID != 1 {
+		t.Fatalf("expected cheapest hotel first, got %d", selected[0].HotelDBID)
+	}
+	if selected[1].HotelDBID == 2 {
+		t.Fatalf("same hotel name should not stay adjacent, got ids %d,%d,%d", selected[0].HotelDBID, selected[1].HotelDBID, selected[2].HotelDBID)
+	}
+}
+
 func TestSelectRecommendedHomeOfferTicketsLimit(t *testing.T) {
 	ids := make(map[int]struct{}, homeOffersRecommendedMaxTickets+5)
 	tickets := make([]*models.Ticket, 0, homeOffersRecommendedMaxTickets+5)

@@ -81,6 +81,39 @@ func pickCheapestPerRecommendedHotel(tickets []*models.Ticket) []*models.Ticket 
 	return out
 }
 
+func recommendedHotelDisplayKey(ticket *models.Ticket) string {
+	if ticket == nil {
+		return ""
+	}
+	if len(ticket.TicketHotel) > 0 {
+		name := strings.ToLower(strings.TrimSpace(ticket.TicketHotel[0].Name))
+		if name != "" {
+			return "name:" + name
+		}
+	}
+	return fmt.Sprintf("id:%d", ticket.HotelDBID)
+}
+
+// separateConsecutiveHotelNames swaps later tickets so the same display name
+// is not adjacent. The set of tickets is unchanged.
+func separateConsecutiveHotelNames(tickets []*models.Ticket) {
+	if len(tickets) < 3 {
+		return
+	}
+	for i := 1; i < len(tickets); i++ {
+		prevKey := recommendedHotelDisplayKey(tickets[i-1])
+		if recommendedHotelDisplayKey(tickets[i]) != prevKey {
+			continue
+		}
+		for j := i + 1; j < len(tickets); j++ {
+			if recommendedHotelDisplayKey(tickets[j]) != prevKey {
+				tickets[i], tickets[j] = tickets[j], tickets[i]
+				break
+			}
+		}
+	}
+}
+
 // diversifyByPriceBuckets reorders tickets so cheap/mid/expensive mix across the list
 // (round-robin across price thirds). Avoids pushing expensive recommendations to last pages.
 func diversifyByPriceBuckets(tickets []*models.Ticket) []*models.Ticket {

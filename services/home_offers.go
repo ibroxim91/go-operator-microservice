@@ -79,6 +79,7 @@ func SelectRecommendedHomeOfferTickets(tickets []*models.Ticket) []*models.Ticke
 	if len(selected) > homeOffersRecommendedMaxTickets {
 		selected = selected[:homeOffersRecommendedMaxTickets]
 	}
+	separateConsecutiveHotelNames(selected)
 	for _, ticket := range selected {
 		if ticket != nil {
 			ticket.FromCache = true
