@@ -6,10 +6,29 @@ on:
       - main
   workflow_dispatch:
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+# Ikki deploy bir vaqtda ishlasa, ikkinchisi birinchisi qurib bo'lmagan
+# konteynerni qayta yaratadi va natija oldindan aytib bo'lmaydigan bo'ladi.
+concurrency:
+  group: deploy-go-operator
+  cancel-in-progress: false
 
+jobs:
+  # Testlar serverda emas, shu yerda ishlaydi: server diski to'lgan va u
+  # yerda Go toolchain ham yo'q. Test yiqilsa deploy umuman boshlanmaydi.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go vet ./...
+      - run: go test ./...
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
     steps:
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.2.2
@@ -18,9 +37,73 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
+          command_timeout: 20m
           script: |
-            set -e
+            set -eu
+
             cd "${{ secrets.PROJECT_DIR }}"
-            git pull
-            docker compose down
-            docker compose up --build -d
+
+            # Noto'g'ri papkada ishlab ketmaslik uchun.
+            test -f docker-compose.yml
+            test -f go.mod
+
+            # Qaytish nuqtasi. Yangi kod ishlamasa shu yerga qaytamiz.
+            PREVIOUS="$(git rev-parse HEAD)"
+            echo "Qaytish nuqtasi: ${PREVIOUS}"
+
+            # `git pull` har safar merge commit yasaydi va server tarixi
+            # main'dan ajralib ketadi. Deploy nishoni main'ning aniq nusxasi
+            # bo'lishi kerak.
+            git fetch origin main
+            git reset --hard origin/main
+            echo "Yangi holat: $(git rev-parse HEAD)"
+
+            # ── Birinchi qavat: qurish ──────────────────────────────────
+            # Avval faqat quramiz. Kompilyatsiya xatosi shu yerda chiqadi va
+            # ishlab turgan konteynerga umuman tegilmaydi.
+            docker compose build
+
+            wait_healthy() {
+              for attempt in $(seq 1 40); do
+                code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+                  'http://127.0.0.1:8088/async-samo/home-offers?hot=true' || echo 000)"
+                if [ "$code" = "200" ]; then
+                  echo "Qidiruv javob berdi (${attempt}-urinish)"
+                  return 0
+                fi
+                sleep 5
+              done
+              return 1
+            }
+
+            # Image qurilgan, bu yerda faqat konteyner almashtiriladi — eng
+            # qisqa uzilish. Oldingi `down` + `up --build` tartibida qidiruv
+            # butun qurish davomida o'chiq turardi.
+            #
+            # `|| true` ataylab: almashtirish yarim yo'lda yiqilsa ham
+            # quyidagi tekshiruv va qaytarish ishlashi kerak.
+            docker compose up -d || echo "Konteynerni almashtirishda xato"
+
+            # ── Ikkinchi qavat: sog'liq va qaytarish ────────────────────
+            if wait_healthy; then
+              echo "Deploy muvaffaqiyatli"
+              exit 0
+            fi
+
+            echo "Qidiruv javob bermadi — oldingi holatga qaytaramiz"
+            docker compose ps || true
+            docker compose logs echo --tail 80 || true
+
+            git reset --hard "${PREVIOUS}"
+            docker compose build || echo "Eski holatni qurishda xato"
+            docker compose up -d || echo "Eski holatni ishga tushirishda xato"
+
+            if wait_healthy; then
+              echo "Qaytarildi: qidiruv ishlayapti, deploy esa o'tmadi"
+            else
+              echo "Qaytarish ham yordam bermadi — qo'lda aralashuv kerak"
+            fi
+
+            # Qidiruv tiklangan bo'lsa ham deploy o'tmadi: job qizil bo'lishi
+            # kerak, aks holda muammo e'tiborsiz qoladi.
+            exit 1
