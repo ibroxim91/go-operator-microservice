@@ -211,11 +211,17 @@ func lockRecommendedBadges(ordered, recommendedSlots []*models.Ticket) {
 	}
 }
 
-// ApplyTicketSortMode flags recommended hotels and builds the display order without extra operator requests.
+// ApplyTicketSortMode groups offers into one card per hotel per tour, flags
+// recommended hotels, and builds the display order without extra operator requests.
 // Default / price sorts: diversify recommended by price, then strict R + 3N interleave.
 // Recommended-only: diversified recommended list.
 // SkipRecommendedInterleave: price sort only (used by home-offers / hot tours).
 func ApplyTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*models.Ticket {
+	// Guruhlash eng boshida: bu yerda ro'yxat to'liq (hamma operator, hamma
+	// sahifa) va sahifaga kesish keyin bo'ladi. Shuning uchun takrorlar
+	// sahifalar orasida qolib ketmaydi.
+	tickets = GroupTicketsByHotel(tickets)
+
 	if mode.SkipRecommendedInterleave {
 		sortTicketsByPrice(tickets, mode.MostExpensive)
 		for _, ticket := range tickets {
