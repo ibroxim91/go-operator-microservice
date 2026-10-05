@@ -137,3 +137,46 @@ func TestGroupPreservesInputOrder(t *testing.T) {
 		t.Fatalf("kirish tartibi saqlanmadi: %+v", out)
 	}
 }
+
+func TestGroupDropsRepeatedIdenticalOffers(t *testing.T) {
+	// Operator aynan bir xil taklifni ikki marta qaytaradi — bron id'si
+	// ham bir xil. Kartada u bir marta ko'rinishi kerak.
+	a := offerTicket(1, "samo_tour", 55, 900, "2026-11-10", 7, 1200)
+	a.TourOperatorID = "0xAAA"
+	b := offerTicket(2, "samo_tour", 55, 900, "2026-11-10", 7, 1200)
+	b.TourOperatorID = "0xAAA"
+
+	out := GroupTicketsByHotel([]*models.Ticket{a, b})
+	if len(out) != 1 {
+		t.Fatalf("bitta karta kutilgan, %d chiqdi", len(out))
+	}
+	if out[0].OffersCount != 1 {
+		t.Fatalf("takror taklif qolib ketdi: %+v", out[0].Offers)
+	}
+}
+
+func TestGroupKeepsOffersWithDifferentBookingIds(t *testing.T) {
+	// Narx, xona va ovqat bir xil bo'lsa ham, bron id'si boshqa bo'lsa bu
+	// boshqa taklif — masalan boshqa reys. Uni yo'qotib bo'lmaydi.
+	a := offerTicket(1, "samo_tour", 55, 900, "2026-11-10", 7, 1200)
+	a.TourOperatorID = "0xAAA"
+	b := offerTicket(2, "samo_tour", 55, 900, "2026-11-10", 7, 1200)
+	b.TourOperatorID = "0xBBB"
+
+	out := GroupTicketsByHotel([]*models.Ticket{a, b})
+	if len(out) != 1 || out[0].OffersCount != 2 {
+		t.Fatalf("ikkala taklif ham qolishi kerak edi: %+v", out[0].Offers)
+	}
+}
+
+func TestGroupKeepsOffersWithoutBookingId(t *testing.T) {
+	a := offerTicket(1, "samo_tour", 55, 900, "2026-11-10", 7, 1200)
+	a.TourOperatorID = ""
+	b := offerTicket(2, "samo_tour", 55, 900, "2026-11-10", 7, 1300)
+	b.TourOperatorID = ""
+
+	out := GroupTicketsByHotel([]*models.Ticket{a, b})
+	if len(out) != 1 || out[0].OffersCount != 2 {
+		t.Fatalf("id'siz takliflar qoldirilishi kerak: %+v", out[0].Offers)
+	}
+}

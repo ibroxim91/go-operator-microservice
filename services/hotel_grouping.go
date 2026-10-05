@@ -131,12 +131,45 @@ func GroupTicketsByHotel(tickets []*models.Ticket) []*models.Ticket {
 		if group.winner == nil {
 			continue
 		}
-		sort.SliceStable(group.offers, func(i, j int) bool {
-			return group.offers[i].PriceFull < group.offers[j].PriceFull
+		offers := dedupeOffers(group.offers)
+		sort.SliceStable(offers, func(i, j int) bool {
+			return offers[i].PriceFull < offers[j].PriceFull
 		})
-		group.winner.Offers = group.offers
-		group.winner.OffersCount = len(group.offers)
+		group.winner.Offers = offers
+		group.winner.OffersCount = len(offers)
 		out = append(out, group.winner)
+	}
+	return out
+}
+
+// dedupeOffers bir xil taklifni ikki marta ko'rsatmaydi.
+//
+// Operator ba'zan aynan bir xil kombinatsiyani qayta qaytaradi: bir xil
+// narx, xona, ovqatlanish va — eng muhimi — bir xil `tour_operator_id`.
+// Bron identifikatori bir xil bo'lgani uchun bu haqiqatan bitta taklif,
+// ikkita emas; mijoz kartani ochganda bir qatorni ikki marta ko'rardi.
+//
+// Noyoblashtirish aynan `tour_operator_id` bo'yicha: u bron qilinadigan
+// narsaning o'zi. Narx yoki xona bo'yicha qilsak, bir xil ko'rinadigan
+// lekin boshqa reysga tegishli ikki taklifni yo'qotib qo'yish xavfi
+// bo'lardi. (O'lchandi: 246 taklifdan 31 tasi takror edi va hammasining
+// bron id'si ham bir xil chiqdi.)
+//
+// Id'siz taklif — agar shunday bo'lsa — qoldiriladi: uni tashlab yuborish
+// bron qilinadigan variantni yo'qotishi mumkin.
+func dedupeOffers(offers []models.TicketOffer) []models.TicketOffer {
+	seen := make(map[string]struct{}, len(offers))
+	out := make([]models.TicketOffer, 0, len(offers))
+	for _, offer := range offers {
+		if offer.TourOperatorID == "" {
+			out = append(out, offer)
+			continue
+		}
+		if _, ok := seen[offer.TourOperatorID]; ok {
+			continue
+		}
+		seen[offer.TourOperatorID] = struct{}{}
+		out = append(out, offer)
 	}
 	return out
 }
