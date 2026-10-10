@@ -1,6 +1,7 @@
 package hottours
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -89,12 +90,12 @@ func FetchHotTours(ctx context.Context, usdCourse float64) (*models.AsyncSamoRes
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("hot tours status %d", resp.StatusCode)
 	}
-	var payload hotToursResponse
-	if err := json.Unmarshal(body, &payload); err != nil {
+	items, err := decodeHotTours(body)
+	if err != nil {
 		return nil, err
 	}
-	tickets := make([]*models.Ticket, 0, len(payload.Data))
-	for _, item := range payload.Data {
+	tickets := make([]*models.Ticket, 0, len(items))
+	for _, item := range items {
 		tickets = append(tickets, mapHotTour(item, usdCourse))
 	}
 	ordered := orderHotTours(tickets)
@@ -117,6 +118,22 @@ func FetchHotTours(ctx context.Context, usdCourse float64) (*models.AsyncSamoRes
 			},
 		},
 	}, nil
+}
+
+func decodeHotTours(body []byte) ([]hotTourItem, error) {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		var items []hotTourItem
+		if err := json.Unmarshal(trimmed, &items); err != nil {
+			return nil, err
+		}
+		return items, nil
+	}
+	var payload hotToursResponse
+	if err := json.Unmarshal(trimmed, &payload); err != nil {
+		return nil, err
+	}
+	return payload.Data, nil
 }
 
 func mapHotTour(item hotTourItem, usdCourse float64) *models.Ticket {

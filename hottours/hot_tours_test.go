@@ -52,3 +52,13 @@ func TestOrderHotToursFallsBackToRegions(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeHotToursAcceptsTopLevelArray(t *testing.T) {
+	items, err := decodeHotTours([]byte(`[{"tourId":"abc","hotel":{"id":7,"name":"RED"},"price":100}]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].TourID != "abc" || items[0].Hotel.ID != 7 {
+		t.Fatalf("items = %+v", items)
+	}
+}
