@@ -200,6 +200,11 @@ func mapHotTour(item hotTourItem, usdCourse float64) *models.Ticket {
 				Name: countryName,
 			},
 		},
+		TicketAmenities:  []string{},
+		Transports:       []models.Transport{},
+		Tariff:           []models.Tariff{},
+		ExtraService:     []string{},
+		PaidExtraService: []string{},
 		TicketHotel: []models.TicketHotel{{
 			ID:       hotelID,
 			Name:     item.Hotel.Name,
