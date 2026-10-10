@@ -52,6 +52,12 @@ type Ticket struct {
 	Operator          string          `json:"operator"`
 	HotelDBID         int             `json:"hotel_db_id"`
 	IsRecommended     bool            `json:"is_recommended"`
+
+	// Bitta mehmonxona, bitta sana va bitta kecha soni uchun hamma
+	// operatorning takliflari. Kartaning o'zi eng arzoni, qolganlari shu
+	// yerda — narx bo'yicha saralangan.
+	Offers      []TicketOffer `json:"offers,omitempty"`
+	OffersCount int           `json:"offers_count,omitempty"`
 	DepartureID       int             `json:"departure_id"`
 	DestinationID     int             `json:"destination_id"`
 	CountryID         int             `json:"country_id"`
@@ -140,6 +146,18 @@ type DestinationInfo struct {
 type CountryInfo struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
+}
+
+// TicketOffer — bitta guruh ichidagi bitta operator taklifi.
+type TicketOffer struct {
+	Operator       string `json:"operator"`
+	TourOperatorID string `json:"tour_operator_id"`
+	PriceFull      int    `json:"price_full"`
+	Price          string `json:"price"`
+	RoomType       string `json:"room_type"`
+	Meal           string `json:"meal"`
+	Nights         int    `json:"nights"`
+	DepartureDate  string `json:"departure_date"`
 }
 
 type TicketHotel struct {
