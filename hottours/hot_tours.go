@@ -156,14 +156,21 @@ func mapHotTour(item hotTourItem, usdCourse float64) *models.Ticket {
 	if meal == "" {
 		meal = strings.TrimSpace(item.Meal.FullName)
 	}
+	if meal == "" {
+		meal = "RO"
+	}
 	nights := item.Nights
 	if nights < 0 {
 		nights = 0
 	}
+	checkIn := normalizeHotTourDate(item.Date)
+	checkOut := addHotTourNights(checkIn, nights)
 	return &models.Ticket{
 		Title:           item.Hotel.Name,
 		Slug:            hotTourSlug(item.Hotel.Name, item.TourID),
-		DepartureDate:   item.Date,
+		DepartureDate:   checkIn,
+		DepartureTime:   checkIn,
+		TravelTime:      checkOut,
 		Nights:          nights,
 		DurationDays:    nights,
 		PassengerCount:  2,
@@ -181,8 +188,9 @@ func mapHotTour(item hotTourItem, usdCourse float64) *models.Ticket {
 		TicketImages:    photo,
 		Rating:          item.Hotel.Rating,
 		Departure: models.DepartureInfo{
-			ID:   item.Departure.ID,
-			Name: item.Departure.Name,
+			ID:      item.Departure.ID,
+			Name:    item.Departure.Name,
+			Country: "Uzbekistan",
 		},
 		Destination: models.DestinationInfo{
 			ID:   item.Hotel.Region.ID,
@@ -199,6 +207,31 @@ func mapHotTour(item hotTourItem, usdCourse float64) *models.Ticket {
 			MealPlan: meal,
 		}},
 	}
+}
+
+func normalizeHotTourDate(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	for _, layout := range []string{"20060102", "2006-01-02", "02.01.2006"} {
+		parsed, err := time.Parse(layout, raw)
+		if err == nil {
+			return parsed.Format("20060102")
+		}
+	}
+	return raw
+}
+
+func addHotTourNights(checkIn string, nights int) string {
+	if nights < 0 {
+		nights = 0
+	}
+	parsed, err := time.Parse("20060102", checkIn)
+	if err != nil {
+		return ""
+	}
+	return parsed.AddDate(0, 0, nights).Format("20060102")
 }
 
 func hotelPhotoURL(link string) string {

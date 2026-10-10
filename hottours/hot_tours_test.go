@@ -53,6 +53,18 @@ func TestOrderHotToursFallsBackToRegions(t *testing.T) {
 	}
 }
 
+func TestHotTourDatesMatchBookingFormat(t *testing.T) {
+	if got := normalizeHotTourDate("22.10.2026"); got != "20261022" {
+		t.Fatalf("dotted = %s", got)
+	}
+	if got := normalizeHotTourDate("2026-10-22"); got != "20261022" {
+		t.Fatalf("iso = %s", got)
+	}
+	if got := addHotTourNights("20261022", 6); got != "20261028" {
+		t.Fatalf("checkout = %s", got)
+	}
+}
+
 func TestDecodeHotToursAcceptsTopLevelArray(t *testing.T) {
 	items, err := decodeHotTours([]byte(`[{"tourId":"abc","hotel":{"id":7,"name":"RED"},"price":100}]`))
 	if err != nil {
