@@ -160,6 +160,9 @@ func findPriceByTourID(prices []models.Price, tourID string) *models.Price {
 		if prices[i].FreightExternal == "Y" {
 			continue
 		}
+		if !models.IsBronBookable(prices[i].Bron) {
+			continue
+		}
 		if prices[i].ID == tourID {
 			return &prices[i]
 		}

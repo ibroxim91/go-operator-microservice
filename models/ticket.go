@@ -1,5 +1,9 @@
 package models
 
+import (
+	"strings"
+)
+
 type BoolString bool
 
 type SharePayload struct {
@@ -8,21 +12,30 @@ type SharePayload struct {
 	SearchURL string `json:"search_url"`
 }
 
+// UnmarshalJSON accepts bool, number and string forms from SAMO:
+// true/"true"/"1"/1 → true; false/"false"/"0"/0/""/null → false.
 func (b *BoolString) UnmarshalJSON(data []byte) error {
-	s := string(data)
-	switch s {
-	case `"1"`, `1`:
+	raw := strings.TrimSpace(string(data))
+	normalized := strings.ToLower(strings.Trim(raw, `"`))
+
+	switch normalized {
+	case "1", "true":
 		*b = true
-	case `"0"`, `0`:
-		*b = false
-	case `true`:
-		*b = true
-	case `false`:
+	case "0", "false", "", "null":
 		*b = false
 	default:
 		*b = false
 	}
 	return nil
+}
+
+func (b BoolString) Bool() bool {
+	return bool(b)
+}
+
+// IsBronBookable reports whether SAMO marks the offer as bookable.
+func IsBronBookable(bron BoolString) bool {
+	return bron.Bool()
 }
 
 type Ticket struct {

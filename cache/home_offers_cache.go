@@ -14,6 +14,7 @@ import (
 
 const HomeOffersCacheKey = "home_offers"
 const HomeOffersRecommendedCacheKey = "home_offers_recommended"
+const HotToursCacheKey = "hot_tours"
 
 // HomeOffersCacheTTL matches the 3h scheduler interval with buffer.
 const HomeOffersCacheTTL = 4 * time.Hour

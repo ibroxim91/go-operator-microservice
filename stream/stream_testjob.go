@@ -114,6 +114,9 @@ func StreamHandleTestJob(
         if price.FreightExternal == "Y" {
             continue
         }
+        if !models.IsBronBookable(price.Bron) {
+            continue
+        }
 
         ticket := utils.TransformSamoPriceToTicket(
             price,

@@ -113,6 +113,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 		if price.FreightExternal == "Y" {
 			continue
 		}
+		if !models.IsBronBookable(price.Bron) {
+			continue
+		}
 		ticket := utils.TransformSamoPriceToTicket(
 			price, job.Departure,
 			job.Operator, job.DestCountryName, job.DestImageUrl,

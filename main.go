@@ -69,6 +69,7 @@ func main() {
 
 	go scheduler.StartPopularDestinationsScheduler(ctx, conn, samoService, cacheClient, hotelService)
 	go scheduler.StartHomeOffersScheduler(ctx, conn, samoService, cacheClient, hotelService)
+	go scheduler.StartHotToursScheduler(ctx, cacheClient)
 
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
 	if frontendOrigin == "" {
