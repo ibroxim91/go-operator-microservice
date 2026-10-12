@@ -165,6 +165,12 @@ type TicketHotel struct {
 	Name     string      `json:"name"`
 	MealPlan string      `json:"meal_plan"`
 	Rating   interface{} `json:"rating"` // int yoki string bo‘lishi mumkin
+
+	// Bazadagi mehmonxona kartochkasidan. Operator bermaydi, shuning
+	// uchun bog'lanmagan mehmonxonada bo'sh qoladi.
+	Address   string `json:"address,omitempty"`
+	Latitude  string `json:"latitude,omitempty"`
+	Longitude string `json:"longitude,omitempty"`
 }
 
 type StreamCacheResult struct {

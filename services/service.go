@@ -23,6 +23,10 @@ type HotelWithPhoto struct {
 	Count       int
 	HotelPhotos []models.HotelPhotos
 	FromMapping bool
+	Star        string
+	Address     string
+	Latitude    string
+	Longitude   string
 }
 
 type cachedHotelResult struct {
@@ -88,6 +92,10 @@ func (s *HotelService) buildHotelWithPhoto(hotel *cache.Hotel, fromMapping bool)
 			ID:          hotel.ID,
 			Name:        hotel.Name,
 			FromMapping: fromMapping,
+			Star:        hotel.Star,
+			Address:     hotel.Address,
+			Latitude:    hotel.Latitude,
+			Longitude:   hotel.Longitude,
 		}, nil
 	}
 
@@ -103,6 +111,10 @@ func (s *HotelService) buildHotelWithPhoto(hotel *cache.Hotel, fromMapping bool)
 		Count:       len(photos),
 		HotelPhotos: photos,
 		FromMapping: fromMapping,
+		Star:        hotel.Star,
+		Address:     hotel.Address,
+		Latitude:    hotel.Latitude,
+		Longitude:   hotel.Longitude,
 	}, nil
 }
 

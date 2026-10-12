@@ -158,6 +158,15 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 		ticket.HotelDBID = hotelWithPhoto.ID
 		ticket.HotelPhotoCount = hotelWithPhoto.Count
 		ticket.HotelPhotos = hotelWithPhoto.HotelPhotos
+
+		// Manzil va koordinata operatordan kelmaydi — ular bizning
+		// kartochkamizda. Shu yergacha olib kelinmasa, mijoz ularni
+		// hech qachon ko'rmaydi.
+		if len(ticket.TicketHotel) > 0 {
+			ticket.TicketHotel[0].Address = hotelWithPhoto.Address
+			ticket.TicketHotel[0].Latitude = hotelWithPhoto.Latitude
+			ticket.TicketHotel[0].Longitude = hotelWithPhoto.Longitude
+		}
 	}
 
 	return ticket
