@@ -13,6 +13,14 @@ import (
 // Kelishuv: bitta tur = mehmonxona + zaezd sanasi + kecha soni. Sana boshqa
 // bo'lsa — bu boshqa tur, shuning uchun alohida karta.
 //
+// Bu qoida **aniq sana** tanlanganda to'g'ri. Mijoz sana oralig'ini
+// bersa (masalan 10-16 noyabr), har sana va har kecha soni alohida
+// karta bo'lib chiqadi va bitta mehmonxona sahifani to'ldiradi:
+// o'lchandi — 85 ta kartaning hammasi atigi 10 ta mehmonxona edi,
+// bittasi 20 marta takrorlangan. Shuning uchun oraliq qidiruvda
+// `acrossDates` yoqiladi: mehmonxona bitta karta bo'ladi, sanalar
+// esa karta ichidagi takliflarda qoladi.
+//
 // Xona turi va ovqatlanish ataylab kalitga kirmaydi: talab bitta
 // mehmonxonaga bitta karta, qolgan variantlar kartaning ichida ko'rinadi.
 //
@@ -21,12 +29,15 @@ import (
 // butun davlatdagi noma'lum mehmonxonalar bitta kartaga yopishadi — testda
 // to'g'ri ishlayotgandek ko'rinadigan xato. Shuning uchun pastda har
 // bosqichda identifikator toraytiriladi, hech qachon kengaytirilmaydi.
-func hotelGroupKey(ticket *models.Ticket) string {
-	checkin := strings.TrimSpace(ticket.DepartureDate)
-	if checkin == "" {
-		checkin = strings.TrimSpace(ticket.DepartureTime)
+func hotelGroupKey(ticket *models.Ticket, acrossDates bool) string {
+	suffix := ""
+	if !acrossDates {
+		checkin := strings.TrimSpace(ticket.DepartureDate)
+		if checkin == "" {
+			checkin = strings.TrimSpace(ticket.DepartureTime)
+		}
+		suffix = fmt.Sprintf("|%s|%d", checkin, ticket.Nights)
 	}
-	suffix := fmt.Sprintf("|%s|%d", checkin, ticket.Nights)
 
 	if ticket.HotelDBID > 0 {
 		return fmt.Sprintf("db:%d%s", ticket.HotelDBID, suffix)
@@ -95,7 +106,7 @@ func existingOffers(ticket *models.Ticket) []models.TicketOffer {
 //
 // Funksiya idempotent: `Offers` har safar qaytadan quriladi, shuning uchun
 // bir ro'yxatni ikki marta guruhlash takliflarni ikkilantirmaydi.
-func GroupTicketsByHotel(tickets []*models.Ticket) []*models.Ticket {
+func GroupTicketsByHotel(tickets []*models.Ticket, acrossDates bool) []*models.Ticket {
 	if len(tickets) == 0 {
 		return tickets
 	}
@@ -112,7 +123,7 @@ func GroupTicketsByHotel(tickets []*models.Ticket) []*models.Ticket {
 		if ticket == nil {
 			continue
 		}
-		key := hotelGroupKey(ticket)
+		key := hotelGroupKey(ticket, acrossDates)
 		group, seen := groups[key]
 		if !seen {
 			group = &hotelGroup{}

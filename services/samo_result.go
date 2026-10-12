@@ -21,19 +21,39 @@ type TicketSortMode struct {
 	MostExpensive            bool
 	RecommendedOnly          bool
 	SkipRecommendedInterleave bool // home-offers: keep price order, no R/N/N/N boost
+
+	// Sana oralig'i bo'yicha qidiruvda bitta mehmonxona bitta karta
+	// bo'ladi: sanalar va kecha sonlari karta ichidagi takliflarda
+	// qoladi. Aniq sana tanlansa o'chiq — unda har sana alohida tur.
+	GroupAcrossDates bool
+}
+
+// dateRangeSearch — mijoz aniq kun emas, oraliq tanladimi.
+func dateRangeSearch(params map[string]string) bool {
+	beg := strings.TrimSpace(params["CHECKIN_BEG"])
+	end := strings.TrimSpace(params["CHECKIN_END"])
+	if beg != "" && end != "" && beg != end {
+		return true
+	}
+	// Kecha soni berilmasa ham natijada 7 dan 14 gacha variantlar
+	// aralash keladi — bu ham oraliq.
+	return strings.TrimSpace(params["NIGHTS_LIST"]) == "" &&
+		strings.TrimSpace(params["NIGHTS_FROM"]) == ""
 }
 
 func ParseTicketSortMode(params map[string]string) TicketSortMode {
 	if params == nil {
 		return TicketSortMode{}
 	}
+	acrossDates := dateRangeSearch(params)
 	recommendedOnly := strings.EqualFold(strings.TrimSpace(params["recommended"]), "true")
 	if recommendedOnly {
-		return TicketSortMode{RecommendedOnly: true}
+		return TicketSortMode{RecommendedOnly: true, GroupAcrossDates: acrossDates}
 	}
 	return TicketSortMode{
-		Cheapest:      strings.EqualFold(strings.TrimSpace(params["cheapest"]), "true"),
-		MostExpensive: strings.EqualFold(strings.TrimSpace(params["most_expensive"]), "true"),
+		Cheapest:         strings.EqualFold(strings.TrimSpace(params["cheapest"]), "true"),
+		MostExpensive:    strings.EqualFold(strings.TrimSpace(params["most_expensive"]), "true"),
+		GroupAcrossDates: acrossDates,
 	}
 }
 
@@ -220,7 +240,7 @@ func ApplyTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*model
 	// Guruhlash eng boshida: bu yerda ro'yxat to'liq (hamma operator, hamma
 	// sahifa) va sahifaga kesish keyin bo'ladi. Shuning uchun takrorlar
 	// sahifalar orasida qolib ketmaydi.
-	tickets = GroupTicketsByHotel(tickets)
+	tickets = GroupTicketsByHotel(tickets, mode.GroupAcrossDates)
 
 	if mode.SkipRecommendedInterleave {
 		sortTicketsByPrice(tickets, mode.MostExpensive)
