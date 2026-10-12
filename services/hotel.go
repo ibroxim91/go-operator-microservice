@@ -206,7 +206,10 @@ func PreloadHotelMappings(db *sql.DB) error {
 
 func PreloadHotelsCache(db *sql.DB) error {
 	cacheOnce.Do(func() {
-		query := `SELECT id, name, country_id, is_recommended FROM api_hotel`
+		query := `SELECT id, name, country_id, is_recommended,
+		                 COALESCE(star, ''), COALESCE(address, ''),
+		                 COALESCE(latitude, ''), COALESCE(longitude, '')
+		          FROM api_hotel`
 		dbQueryCounter++
 		rows, err := db.Query(query)
 		if err != nil {
@@ -222,7 +225,10 @@ func PreloadHotelsCache(db *sql.DB) error {
 			var h cache.Hotel
 			var countryID int
 			var isRecommended bool
-			if err := rows.Scan(&h.ID, &h.Name, &countryID, &isRecommended); err != nil {
+			if err := rows.Scan(
+				&h.ID, &h.Name, &countryID, &isRecommended,
+				&h.Star, &h.Address, &h.Latitude, &h.Longitude,
+			); err != nil {
 				continue
 			}
 			tempByID[h.ID] = h
