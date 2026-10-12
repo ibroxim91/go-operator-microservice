@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
+	"go-operator-service/turvisorsearch"
 	"go-operator-service/workers"
 
 	"github.com/labstack/echo/v4"
@@ -124,8 +126,8 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to build request URLs"})
 		}
 
-		if len(jobs) == 0 {
-			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(1))
+		if len(jobs) == 0 && !turvisorsearch.ShouldSearch(samoParams["OPERATOR"]) {
+			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
 		}
 
 		result, err := loadAsyncSamoTicketsResult(
@@ -134,6 +136,7 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 			cacheKey,
 			jobs,
 			hotelService,
+			samoService,
 			samoParams,
 			cache.IsPopularDestCacheEligible(c) &&
 				cache.ShouldUsePopularDestCache(userSpecifiedDate, samoParams["CHECKIN_BEG"], samoParams["CHECKIN_END"]),
@@ -195,6 +198,7 @@ func loadAsyncSamoTicketsResult(
 	cacheKey string,
 	jobs []models.Request,
 	hotelService *services.HotelService,
+	samoService *services.SamoService,
 	samoParams map[string]string,
 	skipLegacyCache bool,
 ) (*models.AsyncSamoResult, error) {
@@ -217,8 +221,35 @@ func loadAsyncSamoTicketsResult(
 		}
 	}
 
-	workerResult := workers.CollectResults(ctx, jobs, len(jobs), hotelService)
-	response := services.BuildAsyncSamoResult(workerResult)
+	usdCourse := usdCourseForSearch(samoService, jobs, samoParams)
+	tvCh := make(chan tvSearchResult, 1)
+	runTourvisor := turvisorsearch.ShouldSearch(samoParams["OPERATOR"]) && samoService != nil
+	if runTourvisor {
+		go func() {
+			tickets, err := turvisorsearch.Search(ctx, samoService.DB, samoParams, usdCourse)
+			tvCh <- tvSearchResult{tickets: tickets, err: err}
+		}()
+	}
+
+	var response *models.AsyncSamoResult
+	if len(jobs) == 0 {
+		response = buildEmptyAsyncSamoResult(page)
+		response.Data.CurrentUsdCourse = usdCourse
+	} else {
+		workerResult := workers.CollectResults(ctx, jobs, len(jobs), hotelService)
+		response = services.BuildAsyncSamoResult(workerResult)
+	}
+	if runTourvisor {
+		tv := <-tvCh
+		if tv.err != nil {
+			logger.Log.Warn().
+				Err(tv.err).
+				Str("handler", "async-samo/tickets").
+				Msg("tourvisor search failed, returning SAMO results")
+		} else {
+			mergeTourvisorTickets(response, tv.tickets)
+		}
+	}
 
 	if !skipLegacyCache && len(response.Data.Results.Tickets) > 0 {
 		if err := cacheClient.SetCachedAsyncResult(ctx, cacheKey, response, 10*time.Minute); err != nil {
@@ -230,6 +261,77 @@ func loadAsyncSamoTicketsResult(
 	}
 
 	return paginateAsyncSamoResult(ctx, cacheClient, response, page, sortMode), nil
+}
+
+type tvSearchResult struct {
+	tickets []*models.Ticket
+	err     error
+}
+
+func usdCourseForSearch(samoService *services.SamoService, jobs []models.Request, samoParams map[string]string) float64 {
+	if samoParams != nil {
+		if rate := parseUsdCourseParam(samoParams["current_usd_course"]); rate > 0 {
+			return rate
+		}
+	}
+	if len(jobs) > 0 && jobs[0].CurrentUsdCourse > 0 {
+		return jobs[0].CurrentUsdCourse
+	}
+	if samoService == nil {
+		return 0
+	}
+	rate, err := samoService.GetCurrentUsdCourse()
+	if err != nil || rate <= 0 {
+		return 0
+	}
+	return rate
+}
+
+func mergeTourvisorTickets(response *models.AsyncSamoResult, extra []*models.Ticket) {
+	if response == nil || len(extra) == 0 {
+		return
+	}
+	tickets := make([]*models.Ticket, 0, len(response.Data.Results.Tickets)+len(extra))
+	for _, ticket := range response.Data.Results.Tickets {
+		if ticket != nil {
+			tickets = append(tickets, ticket)
+		}
+	}
+	added := 0
+	for _, ticket := range extra {
+		if ticket == nil {
+			continue
+		}
+		tickets = append(tickets, ticket)
+		added++
+	}
+	if added == 0 {
+		return
+	}
+	services.MarkRecommendedFlags(tickets)
+	sort.Slice(tickets, func(i, j int) bool {
+		if tickets[i] == nil || tickets[j] == nil {
+			return tickets[i] != nil
+		}
+		return tickets[i].PriceFull < tickets[j].PriceFull
+	})
+	minPrice := tickets[0].PriceFull
+	maxPrice := tickets[0].PriceFull
+	for _, ticket := range tickets {
+		if ticket.PriceFull < minPrice {
+			minPrice = ticket.PriceFull
+		}
+		if ticket.PriceFull > maxPrice {
+			maxPrice = ticket.PriceFull
+		}
+	}
+	response.Data.Results.Tickets = tickets
+	response.Data.Results.RecommendedTickets = services.FilterRecommendedTickets(tickets)
+	response.Data.Results.Hotels = services.BuildHotelSummaries(tickets)
+	response.Data.Results.MinPrice = minPrice
+	response.Data.Results.MaxPrice = maxPrice
+	response.Data.TotalItems = len(tickets)
+	response.Data.Total += added
 }
 
 func parseRequestedPage(samoParams map[string]string) int {
