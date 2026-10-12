@@ -25,7 +25,7 @@ import (
 const (
 	operatorName = "turvisor"
 	searchURL    = "https://api.tourvisor.ru/search/api/v1/tours/search"
-	searchWait   = 30 * time.Second
+	searchWait   = 10 * time.Second
 	pollEvery    = 3 * time.Second
 	maxHotels    = 30
 	maxDateSpan  = 20 // 21 calendar days, inclusive
