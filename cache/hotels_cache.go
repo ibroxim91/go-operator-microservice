@@ -8,6 +8,13 @@ import (
 type Hotel struct {
 	ID   int
 	Name string
+	// Mehmonxona ma'lumotlari — qidiruv javobiga chiqadi. TourVisor
+	// importidan keyin bazada koordinata va manzil paydo bo'ldi;
+	// ular bu yergacha yetib kelmasa, mijoz baribir ko'rmaydi.
+	Star      string
+	Address   string
+	Latitude  string
+	Longitude string
 }
 
 var HotelByIDCache = make(map[int]Hotel)
