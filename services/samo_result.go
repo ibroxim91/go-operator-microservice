@@ -371,6 +371,18 @@ func BuildAsyncSamoResult(results models.ResultResponse) *models.AsyncSamoResult
 	}
 }
 
+// BuildHotelSummaries — filtr uchun mehmonxonalar ro'yxati.
+//
+// Har qator bitta operatorning taklifi: bitta mehmonxona bir necha
+// operatorda sotilsa, ro'yxatda bir necha marta turadi va har biri
+// o'z imlosi bilan ("REYDEL HOTEL ISTANBUL", "Reydel Hotel").
+//
+// Qatorlarni bizning katalogimiz bo'yicha birlashtirish mumkin, lekin
+// u faqat frontend `hotel_db_id` yubora boshlagandan keyin to'g'ri
+// ishlaydi: birlashgan qator bitta operatorning raqamini olib yuradi
+// va eski `hotel_id` bilan tanlansa, qolgan operatorlarning turlari
+// jimgina yo'qoladi. Shuning uchun hozircha faqat `hotel_db_id`
+// qo'shiladi — frontend o'tgach birlashtirish yoqiladi.
 func BuildHotelSummaries(tickets []*models.Ticket) []models.HotelSummary {
 	hotelMap := map[string]models.HotelSummary{}
 	hotels := make([]models.HotelSummary, 0)
@@ -388,6 +400,7 @@ func BuildHotelSummaries(tickets []*models.Ticket) []models.HotelSummary {
 				Rating:      hotel.Rating,
 				Operator:    ticket.Operator,
 				Destination: ticket.Destination.Name,
+				HotelDBID:   ticket.HotelDBID,
 			}
 			hotels = append(hotels, hotelMap[key])
 		}

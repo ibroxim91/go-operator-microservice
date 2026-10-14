@@ -48,6 +48,11 @@ type HotelSummary struct {
 	Rating      interface{} `json:"rating"`
 	Operator    string      `json:"operator"`
 	Destination string      `json:"destination"`
+
+	// Bizning katalogdagi id. Filtr shuni yuborsa, qidiruv hamma
+	// operatordan o'sha mehmonxonani topadi — operator id'si esa
+	// faqat bitta operatorni biladi.
+	HotelDBID int `json:"hotel_db_id,omitempty"`
 }
 
 type Result struct {

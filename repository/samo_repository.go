@@ -2,6 +2,8 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
 type CountryMapping struct {
@@ -185,3 +187,50 @@ func SaveQueryCache(db *sql.DB, queryKey, operator, url, destinationImageURL str
 }
 
 
+
+// GetOperatorHotelIDs — bizning mehmonxona id'larimizni bitta operatorning
+// o'z id'lariga o'giradi.
+//
+// Filtr endi bizning katalogdan to'ldiriladi: mijoz "Adora Hotel" ni
+// tanlaydi, operator esa uni o'z raqami bilan biladi. Bitta mehmonxona
+// bir necha operatorda bo'lishi mumkin, shuning uchun har operator uchun
+// alohida so'raladi.
+//
+// Mapping topilmasa bo'sh ro'yxat qaytadi — chaqiruvchi o'sha operatorni
+// umuman so'ramasligi kerak. Aks holda filtr e'tiborsiz qolib, mijoz
+// so'ramagan mehmonxonalar chiqadi.
+func GetOperatorHotelIDs(db *sql.DB, operator string, hotelIDs []int) ([]int, error) {
+	if len(hotelIDs) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, 0, len(hotelIDs))
+	args := make([]any, 0, len(hotelIDs)+1)
+	args = append(args, operator)
+	for i, id := range hotelIDs {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+2))
+		args = append(args, id)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT operator_hotel_id
+		FROM hotel_mapping
+		WHERE operator = $1 AND hotel_id IN (%s)`,
+		strings.Join(placeholders, ","))
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]int, 0, len(hotelIDs))
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
