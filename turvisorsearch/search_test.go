@@ -31,6 +31,21 @@ func TestResolveRegionIDs(t *testing.T) {
 	}
 }
 
+func TestDestinationRegionIDsIgnoreTowns(t *testing.T) {
+	ids, ok := resolveRegionIDs(false, nil)
+	if !ok || ids != nil {
+		t.Fatalf("no destination = %v %v", ids, ok)
+	}
+	ids, ok = resolveRegionIDs(true, []int{77})
+	if !ok || len(ids) != 1 || ids[0] != 77 {
+		t.Fatalf("destination mapping = %v %v", ids, ok)
+	}
+	ids, ok = resolveRegionIDs(true, nil)
+	if ok {
+		t.Fatal("town subregion ids must not become regionIds")
+	}
+}
+
 func TestClampDatesAndNights(t *testing.T) {
 	from := time.Date(2026, 10, 1, 15, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 0, 40)
@@ -170,5 +185,8 @@ func TestMapSearchTourMatchesBookingShape(t *testing.T) {
 		if !strings.Contains(raw, part) {
 			t.Fatalf("missing %s in %s", part, raw)
 		}
+	}
+	if strings.Contains(raw, "operator_link") || strings.Contains(raw, "operatorLink") {
+		t.Fatalf("operator link leaked into ticket json: %s", raw)
 	}
 }

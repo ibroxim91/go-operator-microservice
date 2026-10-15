@@ -42,6 +42,21 @@ func TestGroupKeepsCheapestOperatorPerHotel(t *testing.T) {
 	}
 }
 
+func TestGroupMergeDatesPutsSameHotelOnOneCard(t *testing.T) {
+	tickets := []*models.Ticket{
+		offerTicket(1, "turvisor", 0, 516, "20261026", 7, 15_700_000),
+		offerTicket(2, "turvisor", 0, 516, "20261027", 7, 15_700_000),
+	}
+
+	out := GroupTicketsByHotelMergeDates(tickets)
+	if len(out) != 1 {
+		t.Fatalf("bitta karta kutilgan, %d chiqdi", len(out))
+	}
+	if out[0].OffersCount != 2 {
+		t.Fatalf("ikkala sana offers ichida qolishi kerak: %+v", out[0].Offers)
+	}
+}
+
 func TestGroupKeepsDifferentDatesApart(t *testing.T) {
 	// Kelishuv: sana boshqa bo'lsa — boshqa tur.
 	tickets := []*models.Ticket{

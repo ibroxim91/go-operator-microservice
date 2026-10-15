@@ -20,8 +20,16 @@ var hotToursWarmupMu sync.Mutex
 const hotToursCacheInterval = 3 * time.Hour
 
 func StartHotToursScheduler(ctx context.Context, cacheClient *cache.RedisCache) {
+	source := hottours.Source()
+	if source != hottours.SourceTourvisor {
+		logger.Log.Info().Str("source", source).Msg("hot tours scheduler idle; serving SAMO home-offers via /async-samo/hot-tours")
+		<-ctx.Done()
+		logger.Log.Info().Msg("hot tours scheduler stopped")
+		return
+	}
+
 	interval := hotToursInterval()
-	logger.Log.Info().Dur("interval", interval).Msg("hot tours scheduler started")
+	logger.Log.Info().Str("source", source).Dur("interval", interval).Msg("hot tours scheduler started")
 	runHotToursRefresh(ctx, cacheClient)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

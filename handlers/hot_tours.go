@@ -6,9 +6,12 @@ import (
 	"strings"
 
 	"go-operator-service/cache"
+	"go-operator-service/db"
+	"go-operator-service/hottours"
 	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/scheduler"
+	"go-operator-service/services"
 
 	"github.com/labstack/echo/v4"
 )
@@ -16,7 +19,12 @@ import (
 const hotToursFeaturedCount = 4
 const hotToursPageSize = 100
 
-func makeHotToursHandler(ctx context.Context, cacheClient *cache.RedisCache) echo.HandlerFunc {
+func makeHotToursHandler(
+	ctx context.Context,
+	hotelService *services.HotelService,
+	samoService *services.SamoService,
+	cacheClient *cache.RedisCache,
+) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		scope := strings.ToLower(strings.TrimSpace(c.QueryParam("scope")))
 		if scope == "" {
@@ -26,37 +34,70 @@ func makeHotToursHandler(ctx context.Context, cacheClient *cache.RedisCache) ech
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "scope must be featured or rest"})
 		}
 		page := parsePageQuery(c.QueryParam("page"))
+		source := hottours.Source()
 
-		cached, hit, err := cacheClient.LookupHomeOffersCache(ctx, cache.HotToursCacheKey)
+		cached, err := loadHotToursCache(ctx, hotelService, samoService, cacheClient, source)
 		if err != nil {
-			logger.Log.Warn().Err(err).Str("handler", "async-samo/hot-tours").Msg("failed to lookup hot tours cache")
-		}
-		if !hit || cached == nil {
-			warmed, warmErr := scheduler.WarmHotToursCache(ctx, cacheClient)
-			if warmErr != nil {
-				logger.Log.Error().Err(warmErr).Str("handler", "async-samo/hot-tours").Msg("hot tours warmup failed")
-				return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
-			}
-			cached = warmed
+			logger.Log.Error().Err(err).Str("source", source).Str("handler", "async-samo/hot-tours").Msg("hot tours load failed")
+			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
 		}
 		if cached == nil {
 			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
 		}
-		return c.JSON(http.StatusOK, sliceHotTours(cached, scope, page))
+		// Tourvisor homepage cards are excluded from the list; SAMO rest is the full cheapest list.
+		skipFeaturedOnRest := source == hottours.SourceTourvisor
+		return c.JSON(http.StatusOK, sliceHotTours(cached, scope, page, skipFeaturedOnRest))
 	}
 }
 
-func sliceHotTours(cached *models.AsyncSamoResult, scope string, page int) *models.AsyncSamoResult {
+func loadHotToursCache(
+	ctx context.Context,
+	hotelService *services.HotelService,
+	samoService *services.SamoService,
+	cacheClient *cache.RedisCache,
+	source string,
+) (*models.AsyncSamoResult, error) {
+	if source == hottours.SourceTourvisor {
+		cached, hit, err := cacheClient.LookupHomeOffersCache(ctx, cache.HotToursCacheKey)
+		if err != nil {
+			logger.Log.Warn().Err(err).Str("handler", "async-samo/hot-tours").Msg("failed to lookup tourvisor hot tours cache")
+		}
+		if hit && cached != nil {
+			return cached, nil
+		}
+		return scheduler.WarmHotToursCache(ctx, cacheClient)
+	}
+
+	cached, hit, err := cacheClient.LookupHomeOffersCache(ctx, cache.HomeOffersCacheKey)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("handler", "async-samo/hot-tours").Msg("failed to lookup samo home-offers cache")
+	}
+	if hit && cached != nil {
+		return services.CloneHomeOffersResult(cached, nil), nil
+	}
+	if db.DB == nil {
+		return nil, nil
+	}
+	warmed, warmErr := scheduler.WarmHomeOffersCache(ctx, db.DB, samoService, cacheClient, hotelService)
+	if warmErr != nil {
+		return nil, warmErr
+	}
+	return services.CloneHomeOffersResult(warmed, nil), nil
+}
+
+func sliceHotTours(cached *models.AsyncSamoResult, scope string, page int, skipFeaturedOnRest bool) *models.AsyncSamoResult {
 	tickets := cached.Data.Results.Tickets
 	if scope == "featured" {
 		if len(tickets) > hotToursFeaturedCount {
 			tickets = tickets[:hotToursFeaturedCount]
 		}
 		page = 1
-	} else if len(tickets) > hotToursFeaturedCount {
-		tickets = tickets[hotToursFeaturedCount:]
-	} else {
-		tickets = []*models.Ticket{}
+	} else if skipFeaturedOnRest {
+		if len(tickets) > hotToursFeaturedCount {
+			tickets = tickets[hotToursFeaturedCount:]
+		} else {
+			tickets = []*models.Ticket{}
+		}
 	}
 
 	totalItems := len(tickets)

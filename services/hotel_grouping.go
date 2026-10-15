@@ -21,15 +21,9 @@ import (
 // butun davlatdagi noma'lum mehmonxonalar bitta kartaga yopishadi — testda
 // to'g'ri ishlayotgandek ko'rinadigan xato. Shuning uchun pastda har
 // bosqichda identifikator toraytiriladi, hech qachon kengaytirilmaydi.
-func hotelGroupKey(ticket *models.Ticket) string {
-	checkin := strings.TrimSpace(ticket.DepartureDate)
-	if checkin == "" {
-		checkin = strings.TrimSpace(ticket.DepartureTime)
-	}
-	suffix := fmt.Sprintf("|%s|%d", checkin, ticket.Nights)
-
+func hotelIdentityKey(ticket *models.Ticket) string {
 	if ticket.HotelDBID > 0 {
-		return fmt.Sprintf("db:%d%s", ticket.HotelDBID, suffix)
+		return fmt.Sprintf("db:%d", ticket.HotelDBID)
 	}
 
 	// Mapping yo'q: operatorning o'z id'si bilan guruhlaymiz. Bu bir
@@ -37,12 +31,20 @@ func hotelGroupKey(ticket *models.Ticket) string {
 	// operatorlar orasida birlashtirmaydi — chunki ular bir xil
 	// mehmonxona ekanini aytadigan narsa yo'q.
 	if len(ticket.TicketHotel) > 0 && ticket.TicketHotel[0].ID > 0 {
-		return fmt.Sprintf("op:%s:%d%s", ticket.Operator, ticket.TicketHotel[0].ID, suffix)
+		return fmt.Sprintf("op:%s:%d", ticket.Operator, ticket.TicketHotel[0].ID)
 	}
 
 	// Ikkala id ham yo'q. Bu yerda taxmin qilish xavfli, shuning uchun
 	// taklif o'z guruhida qoladi.
 	return fmt.Sprintf("uniq:%s:%s", ticket.Operator, ticket.TourOperatorID)
+}
+
+func hotelGroupKey(ticket *models.Ticket) string {
+	checkin := strings.TrimSpace(ticket.DepartureDate)
+	if checkin == "" {
+		checkin = strings.TrimSpace(ticket.DepartureTime)
+	}
+	return fmt.Sprintf("%s|%s|%d", hotelIdentityKey(ticket), checkin, ticket.Nights)
 }
 
 // cheaperOffer — 0 yoki manfiy narx "eng arzon" bo'lib qolmasligi uchun.
@@ -96,6 +98,17 @@ func existingOffers(ticket *models.Ticket) []models.TicketOffer {
 // Funksiya idempotent: `Offers` har safar qaytadan quriladi, shuning uchun
 // bir ro'yxatni ikki marta guruhlash takliflarni ikkilantirmaydi.
 func GroupTicketsByHotel(tickets []*models.Ticket) []*models.Ticket {
+	return groupTicketsByKey(tickets, hotelGroupKey)
+}
+
+// GroupTicketsByHotelMergeDates — stream/TV: bitta mehmonxona = bitta karta.
+// Zaezd sanasi va kecha soni takliflar ichida qoladi. JSON /selectour
+// bu funksiyani chaqirmaydi.
+func GroupTicketsByHotelMergeDates(tickets []*models.Ticket) []*models.Ticket {
+	return groupTicketsByKey(tickets, hotelIdentityKey)
+}
+
+func groupTicketsByKey(tickets []*models.Ticket, keyFn func(*models.Ticket) string) []*models.Ticket {
 	if len(tickets) == 0 {
 		return tickets
 	}
@@ -112,7 +125,7 @@ func GroupTicketsByHotel(tickets []*models.Ticket) []*models.Ticket {
 		if ticket == nil {
 			continue
 		}
-		key := hotelGroupKey(ticket)
+		key := keyFn(ticket)
 		group, seen := groups[key]
 		if !seen {
 			group = &hotelGroup{}

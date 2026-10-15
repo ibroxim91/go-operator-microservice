@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
-	"go-operator-service/turvisorsearch"
 	"go-operator-service/workers"
 
 	"github.com/labstack/echo/v4"
@@ -27,7 +25,7 @@ func RegisterRoutes(e *echo.Echo, ctx context.Context, hotelService *services.Ho
 	e.POST("/search-tours", makeSearchToursHandler(ctx, hotelService))
 	e.GET("/async-samo/tickets", makeAsyncSamoTicketsHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/async-samo/home-offers", makeHomeOffersHandler(ctx, hotelService, samoService, cacheClient))
-	e.GET("/async-samo/hot-tours", makeHotToursHandler(ctx, cacheClient))
+	e.GET("/async-samo/hot-tours", makeHotToursHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/async-samo/home-offers/recommended", makeHomeOffersRecommendedHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/stream-samo/tickets", makeAsyncSamoTicketsStreamHandler(ctx, hotelService, samoService, cacheClient))
 }
@@ -126,7 +124,7 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to build request URLs"})
 		}
 
-		if len(jobs) == 0 && !turvisorsearch.ShouldSearch(samoParams["OPERATOR"]) {
+		if len(jobs) == 0 {
 			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
 		}
 
@@ -222,14 +220,6 @@ func loadAsyncSamoTicketsResult(
 	}
 
 	usdCourse := usdCourseForSearch(samoService, jobs, samoParams)
-	tvCh := make(chan tvSearchResult, 1)
-	runTourvisor := turvisorsearch.ShouldSearch(samoParams["OPERATOR"]) && samoService != nil
-	if runTourvisor {
-		go func() {
-			tickets, err := turvisorsearch.Search(ctx, samoService.DB, samoParams, usdCourse)
-			tvCh <- tvSearchResult{tickets: tickets, err: err}
-		}()
-	}
 
 	var response *models.AsyncSamoResult
 	if len(jobs) == 0 {
@@ -238,17 +228,6 @@ func loadAsyncSamoTicketsResult(
 	} else {
 		workerResult := workers.CollectResults(ctx, jobs, len(jobs), hotelService)
 		response = services.BuildAsyncSamoResult(workerResult)
-	}
-	if runTourvisor {
-		tv := <-tvCh
-		if tv.err != nil {
-			logger.Log.Warn().
-				Err(tv.err).
-				Str("handler", "async-samo/tickets").
-				Msg("tourvisor search failed, returning SAMO results")
-		} else {
-			mergeTourvisorTickets(response, tv.tickets)
-		}
 	}
 
 	if !skipLegacyCache && len(response.Data.Results.Tickets) > 0 {
@@ -261,11 +240,6 @@ func loadAsyncSamoTicketsResult(
 	}
 
 	return paginateAsyncSamoResult(ctx, cacheClient, response, page, sortMode), nil
-}
-
-type tvSearchResult struct {
-	tickets []*models.Ticket
-	err     error
 }
 
 func usdCourseForSearch(samoService *services.SamoService, jobs []models.Request, samoParams map[string]string) float64 {
@@ -285,53 +259,6 @@ func usdCourseForSearch(samoService *services.SamoService, jobs []models.Request
 		return 0
 	}
 	return rate
-}
-
-func mergeTourvisorTickets(response *models.AsyncSamoResult, extra []*models.Ticket) {
-	if response == nil || len(extra) == 0 {
-		return
-	}
-	tickets := make([]*models.Ticket, 0, len(response.Data.Results.Tickets)+len(extra))
-	for _, ticket := range response.Data.Results.Tickets {
-		if ticket != nil {
-			tickets = append(tickets, ticket)
-		}
-	}
-	added := 0
-	for _, ticket := range extra {
-		if ticket == nil {
-			continue
-		}
-		tickets = append(tickets, ticket)
-		added++
-	}
-	if added == 0 {
-		return
-	}
-	services.MarkRecommendedFlags(tickets)
-	sort.Slice(tickets, func(i, j int) bool {
-		if tickets[i] == nil || tickets[j] == nil {
-			return tickets[i] != nil
-		}
-		return tickets[i].PriceFull < tickets[j].PriceFull
-	})
-	minPrice := tickets[0].PriceFull
-	maxPrice := tickets[0].PriceFull
-	for _, ticket := range tickets {
-		if ticket.PriceFull < minPrice {
-			minPrice = ticket.PriceFull
-		}
-		if ticket.PriceFull > maxPrice {
-			maxPrice = ticket.PriceFull
-		}
-	}
-	response.Data.Results.Tickets = tickets
-	response.Data.Results.RecommendedTickets = services.FilterRecommendedTickets(tickets)
-	response.Data.Results.Hotels = services.BuildHotelSummaries(tickets)
-	response.Data.Results.MinPrice = minPrice
-	response.Data.Results.MaxPrice = maxPrice
-	response.Data.TotalItems = len(tickets)
-	response.Data.Total += added
 }
 
 func parseRequestedPage(samoParams map[string]string) int {

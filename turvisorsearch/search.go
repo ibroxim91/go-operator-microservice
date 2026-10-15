@@ -23,13 +23,14 @@ import (
 )
 
 const (
-	operatorName = "turvisor"
-	searchURL    = "https://api.tourvisor.ru/search/api/v1/tours/search"
-	searchWait   = 10 * time.Second
-	pollEvery    = 3 * time.Second
-	maxHotels    = 30
-	maxDateSpan  = 20 // 21 calendar days, inclusive
-	maxNightSpan = 10
+	operatorName    = "turvisor"
+	searchURL       = "https://api.tourvisor.ru/search/api/v1/tours/search"
+	searchWait      = 15 * time.Second
+	pollEvery       = 2 * time.Second
+	firstFetchAfter = 3 * time.Second
+	maxHotels       = 30
+	maxDateSpan     = 20 // 21 calendar days, inclusive
+	maxNightSpan    = 10
 )
 
 // Query is a Tourvisor search that does not go through the SAMO URL jobs.
@@ -61,7 +62,7 @@ func ShouldSearch(operator string) bool {
 
 // MapParams reads the existing SAMO parameter map and the operator=turvisor rows.
 // Missing country, departure, meal, or rating mappings skip this search.
-// A selected region with no town mapping also skips it and does not widen to the whole country.
+// A selected destination with no RegionMapping skips it and does not widen to the whole country.
 func MapParams(db *sql.DB, params map[string]string) (*Query, bool, error) {
 	if db == nil {
 		return nil, false, fmt.Errorf("db is nil")
@@ -94,8 +95,7 @@ func MapParams(db *sql.DB, params map[string]string) (*Query, bool, error) {
 	}
 
 	destinationID := atoi(params["destination"])
-	townIDs := splitCSV(params["TOWNS"])
-	regionIDs, ok, err := mapRegionIDs(db, destinationID, townIDs)
+	regionIDs, ok, err := mapRegionIDs(db, destinationID)
 	if err != nil || !ok {
 		return nil, false, err
 	}
@@ -154,47 +154,25 @@ func MapParams(db *sql.DB, params map[string]string) (*Query, bool, error) {
 	return query, true, nil
 }
 
-func mapRegionIDs(db *sql.DB, destinationID int, townIDs []string) ([]int, bool, error) {
-	if len(townIDs) > 0 {
-		ids := make([]int, 0, len(townIDs))
-		for _, rawID := range townIDs {
-			townID := atoi(rawID)
-			if townID <= 0 {
-				continue
-			}
-			mapping, err := repository.GetTownMapping(db, operatorName, townID)
-			if err != nil {
-				if err == sql.ErrNoRows {
-					log.Printf("No town mapping found for operator: %s, townID: %d", operatorName, townID)
-					continue
-				}
-				return nil, false, err
-			}
-			if mapping.OperatorTownID > 0 {
-				ids = append(ids, mapping.OperatorTownID)
-			}
-		}
-		ids, ok := resolveRegionIDs(true, ids)
+func mapRegionIDs(db *sql.DB, destinationID int) ([]int, bool, error) {
+	if destinationID <= 0 {
+		ids, ok := resolveRegionIDs(false, nil)
 		return ids, ok, nil
 	}
-	if destinationID > 0 {
-		mappings, err := repository.GetTownMappingsByRegion(db, operatorName, destinationID)
-		if err != nil {
-			return nil, false, err
+	mapping, err := repository.GetRegionMapping(db, operatorName, destinationID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Printf("No destination region mapping for operator: %s, regionID: %d — skip (no country-wide fallback)", operatorName, destinationID)
+			ids, ok := resolveRegionIDs(true, nil)
+			return ids, ok, nil
 		}
-		ids := make([]int, 0, len(mappings))
-		for _, mapping := range mappings {
-			if mapping.OperatorTownID > 0 {
-				ids = append(ids, mapping.OperatorTownID)
-			}
-		}
-		ids, ok := resolveRegionIDs(true, ids)
-		if !ok {
-			log.Printf("No town mappings for operator: %s, regionID: %d — skip (no country-wide fallback)", operatorName, destinationID)
-		}
+		return nil, false, err
+	}
+	if mapping.OperatorTownID <= 0 {
+		ids, ok := resolveRegionIDs(true, nil)
 		return ids, ok, nil
 	}
-	ids, ok := resolveRegionIDs(false, nil)
+	ids, ok := resolveRegionIDs(true, []int{mapping.OperatorTownID})
 	return ids, ok, nil
 }
 
@@ -336,50 +314,148 @@ func MakeURL(q Query) string {
 	return searchURL + "?" + q.Values().Encode()
 }
 
-// Search starts a Tourvisor search, waits up to 30 seconds, and maps the tours that arrived.
+// Search starts a Tourvisor search and returns every mapped tour that arrived.
 func Search(ctx context.Context, db *sql.DB, params map[string]string, usdCourse float64) ([]*models.Ticket, error) {
+	var tickets []*models.Ticket
+	err := Stream(ctx, db, params, usdCourse, func(batch []*models.Ticket) {
+		tickets = append(tickets, batch...)
+	})
+	return tickets, err
+}
+
+// Stream starts a Tourvisor search and emits newly mapped tours as they appear.
+// The first batch is sent after progress > 0, about 5 seconds, or a finished status.
+func Stream(ctx context.Context, db *sql.DB, params map[string]string, usdCourse float64, emit func([]*models.Ticket)) error {
 	query, ok, err := MapParams(db, params)
 	if err != nil || !ok {
-		return nil, err
+		if params == nil {
+			params = map[string]string{}
+		}
+		log.Printf(
+			"tourvisor skip mapped query err=%v ok=%v destination=%s STATEINC=%s TOWNFROMINC=%s CHECKIN=%s..%s NIGHTS_LIST=%s STARS=%s MEALS=%s",
+			err,
+			ok,
+			params["destination"],
+			params["STATEINC"],
+			params["TOWNFROMINC"],
+			params["CHECKIN_BEG"],
+			params["CHECKIN_END"],
+			params["NIGHTS_LIST"],
+			params["STARS"],
+			params["MEALS"],
+		)
+		return err
 	}
+	log.Printf(
+		"tourvisor mapped query departureId=%d countryId=%d regionIds=%v dateFrom=%s dateTo=%s nights=%d..%d adults=%d meal=%d hotelCategory=%d",
+		query.DepartureID,
+		query.CountryID,
+		query.RegionIDs,
+		query.DateFrom.Format("2006-01-02"),
+		query.DateTo.Format("2006-01-02"),
+		query.NightsFrom,
+		query.NightsTo,
+		query.Adults,
+		query.Meal,
+		query.HotelCategory,
+	)
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
 	searchID, err := startSearch(ctx, query)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	waitForStatus(ctx, searchID)
-	hotels, err := fetchResults(ctx, searchID)
-	if err != nil {
-		return nil, err
-	}
-	tickets := make([]*models.Ticket, 0)
-	for _, hotel := range hotels {
-		for _, tour := range hotel.Tours {
-			ticket := mapSearchTour(hotel, tour, *query, usdCourse)
-			if ticket != nil {
-				tickets = append(tickets, ticket)
+
+	seen := map[string]struct{}{}
+	fetchNew := func() {
+		hotels, fetchErr := fetchResults(ctx, searchID)
+		if fetchErr != nil {
+			log.Printf("tourvisor results fetch failed searchId=%s err=%v", searchID, fetchErr)
+			return
+		}
+		batch := make([]*models.Ticket, 0)
+		for _, hotel := range hotels {
+			for _, tour := range hotel.Tours {
+				ticket := mapSearchTour(hotel, tour, *query, usdCourse)
+				if ticket == nil {
+					continue
+				}
+				id := ticket.TourOperatorID
+				if id == "" {
+					continue
+				}
+				if _, ok := seen[id]; ok {
+					continue
+				}
+				seen[id] = struct{}{}
+				batch = append(batch, ticket)
 			}
 		}
+		log.Printf("tourvisor results mapped searchId=%s hotels=%d newTours=%d", searchID, len(hotels), len(batch))
+		if len(batch) > 0 && emit != nil {
+			emit(batch)
+		}
 	}
-	return tickets, nil
+
+	deadline := time.Now().Add(searchWait)
+	started := time.Now()
+	fetched := false
+	for {
+		body, status, pollErr := getJSON(ctx, statusURL(searchID))
+		st := searchStatus{}
+		if pollErr == nil && status >= 200 && status < 300 {
+			st = decodeStatus(body)
+		}
+		ready := statusDone(st) || st.Progress > 0 || time.Since(started) >= firstFetchAfter
+		if ready {
+			fetchNew()
+			fetched = true
+		}
+		if statusDone(st) || time.Now().After(deadline) {
+			if !fetched {
+				fetchNew()
+			}
+			return nil
+		}
+		wait := pollEvery
+		if remaining := time.Until(deadline); remaining < wait {
+			wait = remaining
+		}
+		if wait < 500*time.Millisecond {
+			if !fetched {
+				fetchNew()
+			}
+			return nil
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func startSearch(ctx context.Context, query *Query) (string, error) {
-	body, status, err := getJSON(ctx, MakeURL(*query))
+	endpoint := MakeURL(*query)
+	log.Printf("tourvisor endpoint search GET %s", endpoint)
+	body, status, err := getJSON(ctx, endpoint)
 	if err != nil {
+		log.Printf("tourvisor endpoint search failed GET %s err=%v", endpoint, err)
 		return "", err
 	}
 	if status < 200 || status >= 300 {
+		log.Printf("tourvisor endpoint search status=%d GET %s body=%s", status, endpoint, truncateLogBody(body))
 		return "", fmt.Errorf("tourvisor search status %d", status)
 	}
 	searchID, err := decodeSearchID(body)
 	if err != nil {
+		log.Printf("tourvisor endpoint search id missing GET %s body=%s", endpoint, truncateLogBody(body))
 		return "", err
 	}
-	log.Printf("tourvisor search started id=%s", searchID)
+	log.Printf("tourvisor search started id=%s GET %s", searchID, endpoint)
 	return searchID, nil
 }
 
@@ -411,17 +487,40 @@ func waitForStatus(ctx context.Context, searchID string) {
 
 func fetchResults(ctx context.Context, searchID string) ([]searchHotel, error) {
 	endpoint := resultsURL(searchID)
+	log.Printf("tourvisor endpoint results GET %s", endpoint)
 	body, status, err := getJSON(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}
 	if status < 200 || status >= 300 {
+		log.Printf("tourvisor endpoint results status=%d GET %s body=%s", status, endpoint, truncateLogBody(body))
 		return nil, fmt.Errorf("tourvisor results status %d", status)
 	}
-	return decodeResults(body)
+	hotels, err := decodeResults(body)
+	if err != nil {
+		log.Printf("tourvisor endpoint results decode failed GET %s body=%s err=%v", endpoint, truncateLogBody(body), err)
+		return nil, err
+	}
+	tours := 0
+	for _, hotel := range hotels {
+		tours += len(hotel.Tours)
+	}
+	log.Printf("tourvisor endpoint results ok GET %s hotels=%d tours=%d", endpoint, len(hotels), tours)
+	return hotels, nil
+}
+
+func truncateLogBody(body []byte) string {
+	text := strings.TrimSpace(string(body))
+	if len(text) > 400 {
+		return text[:400] + "..."
+	}
+	return text
 }
 
 func getJSON(ctx context.Context, endpoint string) ([]byte, int, error) {
+	if strings.Contains(endpoint, "/status") {
+		log.Printf("tourvisor endpoint status GET %s", endpoint)
+	}
 	token := strings.TrimSpace(os.Getenv("TOURVISOR_JWT"))
 	if token == "" {
 		return nil, 0, fmt.Errorf("TOURVISOR_JWT is empty")

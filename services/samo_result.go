@@ -17,9 +17,9 @@ const recommendedPriceBuckets = 3
 
 // TicketSortMode controls in-memory ordering after search results are collected.
 type TicketSortMode struct {
-	Cheapest                 bool
-	MostExpensive            bool
-	RecommendedOnly          bool
+	Cheapest                  bool
+	MostExpensive             bool
+	RecommendedOnly           bool
 	SkipRecommendedInterleave bool // home-offers: keep price order, no R/N/N/N boost
 }
 
@@ -217,10 +217,16 @@ func lockRecommendedBadges(ordered, recommendedSlots []*models.Ticket) {
 // Recommended-only: diversified recommended list.
 // SkipRecommendedInterleave: price sort only (used by home-offers / hot tours).
 func ApplyTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*models.Ticket {
-	// Guruhlash eng boshida: bu yerda ro'yxat to'liq (hamma operator, hamma
-	// sahifa) va sahifaga kesish keyin bo'ladi. Shuning uchun takrorlar
-	// sahifalar orasida qolib ketmaydi.
-	tickets = GroupTicketsByHotel(tickets)
+	return applyTicketSortMode(tickets, mode, GroupTicketsByHotel)
+}
+
+// ApplyStreamTicketSortMode groups one card per hotel, merging check-in dates.
+func ApplyStreamTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*models.Ticket {
+	return applyTicketSortMode(tickets, mode, GroupTicketsByHotelMergeDates)
+}
+
+func applyTicketSortMode(tickets []*models.Ticket, mode TicketSortMode, groupFn func([]*models.Ticket) []*models.Ticket) []*models.Ticket {
+	tickets = groupFn(tickets)
 
 	if mode.SkipRecommendedInterleave {
 		sortTicketsByPrice(tickets, mode.MostExpensive)

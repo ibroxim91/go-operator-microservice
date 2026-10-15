@@ -39,25 +39,25 @@ func IsBronBookable(bron BoolString) bool {
 }
 
 type Ticket struct {
-	TourOperatorID    string          `json:"tour_operator_id"`
-	ShareToken        string          `json:"share_token"`
-	ID                int             `json:"id"`
-	Title             string          `json:"title"`
-	Slug              string          `json:"slug"`
-	RequestUrl        string          `json:"-"`
-	Nights            int             `json:"nights"`
-	Price             string          `json:"price"`
-	OperatorPrice     string          `json:"operator_price"`
-	PriceFull         int             `json:"price_full"`
-	Operator          string          `json:"operator"`
-	HotelDBID         int             `json:"hotel_db_id"`
-	IsRecommended     bool            `json:"is_recommended"`
+	TourOperatorID string `json:"tour_operator_id"`
+	ShareToken     string `json:"share_token"`
+	ID             int    `json:"id"`
+	Title          string `json:"title"`
+	Slug           string `json:"slug"`
+	RequestUrl     string `json:"-"`
+	Nights         int    `json:"nights"`
+	Price          string `json:"price"`
+	OperatorPrice  string `json:"operator_price"`
+	PriceFull      int    `json:"price_full"`
+	Operator       string `json:"operator"`
+	HotelDBID      int    `json:"hotel_db_id"`
+	IsRecommended  bool   `json:"is_recommended"`
 
 	// Bitta mehmonxona, bitta sana va bitta kecha soni uchun hamma
 	// operatorning takliflari. Kartaning o'zi eng arzoni, qolganlari shu
 	// yerda — narx bo'yicha saralangan.
-	Offers      []TicketOffer `json:"offers,omitempty"`
-	OffersCount int           `json:"offers_count,omitempty"`
+	Offers            []TicketOffer   `json:"offers,omitempty"`
+	OffersCount       int             `json:"offers_count,omitempty"`
 	DepartureID       int             `json:"departure_id"`
 	DestinationID     int             `json:"destination_id"`
 	CountryID         int             `json:"country_id"`
