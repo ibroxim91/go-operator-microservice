@@ -2,8 +2,15 @@ package hottours
 
 import "testing"
 
-func TestSourceDefaultsToSAMO(t *testing.T) {
+func TestSourceDefaultsToTourvisor(t *testing.T) {
 	t.Setenv("HOT_TOURS_SOURCE", "")
+	if got := Source(); got != SourceTourvisor {
+		t.Fatalf("Source() = %q, want %q", got, SourceTourvisor)
+	}
+}
+
+func TestSourceSAMO(t *testing.T) {
+	t.Setenv("HOT_TOURS_SOURCE", "samo")
 	if got := Source(); got != SourceSAMO {
 		t.Fatalf("Source() = %q, want %q", got, SourceSAMO)
 	}

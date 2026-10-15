@@ -12,14 +12,14 @@ const (
 	SourceTourvisor = "tourvisor"
 )
 
-// Source is HOT_TOURS_SOURCE: samo (default) or tourvisor.
+// Source is HOT_TOURS_SOURCE: tourvisor (default) or samo.
 func Source() string {
 	raw := strings.TrimSpace(strings.ToLower(os.Getenv("HOT_TOURS_SOURCE")))
 	switch raw {
-	case SourceTourvisor, "tv":
-		return SourceTourvisor
-	default:
+	case SourceSAMO:
 		return SourceSAMO
+	default:
+		return SourceTourvisor
 	}
 }
 
