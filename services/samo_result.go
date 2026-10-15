@@ -21,19 +21,39 @@ type TicketSortMode struct {
 	MostExpensive             bool
 	RecommendedOnly           bool
 	SkipRecommendedInterleave bool // home-offers: keep price order, no R/N/N/N boost
+
+	// Sana oralig'i bo'yicha qidiruvda bitta mehmonxona bitta karta
+	// bo'ladi: sanalar va kecha sonlari karta ichidagi takliflarda
+	// qoladi. Aniq sana tanlansa o'chiq — unda har sana alohida tur.
+	GroupAcrossDates bool
+}
+
+// dateRangeSearch — mijoz aniq kun emas, oraliq tanladimi.
+func dateRangeSearch(params map[string]string) bool {
+	beg := strings.TrimSpace(params["CHECKIN_BEG"])
+	end := strings.TrimSpace(params["CHECKIN_END"])
+	if beg != "" && end != "" && beg != end {
+		return true
+	}
+	// Kecha soni berilmasa ham natijada 7 dan 14 gacha variantlar
+	// aralash keladi — bu ham oraliq.
+	return strings.TrimSpace(params["NIGHTS_LIST"]) == "" &&
+		strings.TrimSpace(params["NIGHTS_FROM"]) == ""
 }
 
 func ParseTicketSortMode(params map[string]string) TicketSortMode {
 	if params == nil {
 		return TicketSortMode{}
 	}
+	acrossDates := dateRangeSearch(params)
 	recommendedOnly := strings.EqualFold(strings.TrimSpace(params["recommended"]), "true")
 	if recommendedOnly {
-		return TicketSortMode{RecommendedOnly: true}
+		return TicketSortMode{RecommendedOnly: true, GroupAcrossDates: acrossDates}
 	}
 	return TicketSortMode{
-		Cheapest:      strings.EqualFold(strings.TrimSpace(params["cheapest"]), "true"),
-		MostExpensive: strings.EqualFold(strings.TrimSpace(params["most_expensive"]), "true"),
+		Cheapest:         strings.EqualFold(strings.TrimSpace(params["cheapest"]), "true"),
+		MostExpensive:    strings.EqualFold(strings.TrimSpace(params["most_expensive"]), "true"),
+		GroupAcrossDates: acrossDates,
 	}
 }
 
@@ -217,16 +237,12 @@ func lockRecommendedBadges(ordered, recommendedSlots []*models.Ticket) {
 // Recommended-only: diversified recommended list.
 // SkipRecommendedInterleave: price sort only (used by home-offers / hot tours).
 func ApplyTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*models.Ticket {
-	return applyTicketSortMode(tickets, mode, GroupTicketsByHotel)
-}
 
-// ApplyStreamTicketSortMode groups one card per hotel, merging check-in dates.
-func ApplyStreamTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*models.Ticket {
-	return applyTicketSortMode(tickets, mode, GroupTicketsByHotelMergeDates)
-}
+	// Guruhlash eng boshida: bu yerda ro'yxat to'liq (hamma operator, hamma
+	// sahifa) va sahifaga kesish keyin bo'ladi. Shuning uchun takrorlar
+	// sahifalar orasida qolib ketmaydi.
+	tickets = GroupTicketsByHotel(tickets, mode.GroupAcrossDates)
 
-func applyTicketSortMode(tickets []*models.Ticket, mode TicketSortMode, groupFn func([]*models.Ticket) []*models.Ticket) []*models.Ticket {
-	tickets = groupFn(tickets)
 
 	if mode.SkipRecommendedInterleave {
 		sortTicketsByPrice(tickets, mode.MostExpensive)
@@ -357,6 +373,18 @@ func BuildAsyncSamoResult(results models.ResultResponse) *models.AsyncSamoResult
 	}
 }
 
+// BuildHotelSummaries — filtr uchun mehmonxonalar ro'yxati.
+//
+// Har qator bitta operatorning taklifi: bitta mehmonxona bir necha
+// operatorda sotilsa, ro'yxatda bir necha marta turadi va har biri
+// o'z imlosi bilan ("REYDEL HOTEL ISTANBUL", "Reydel Hotel").
+//
+// Qatorlarni bizning katalogimiz bo'yicha birlashtirish mumkin, lekin
+// u faqat frontend `hotel_db_id` yubora boshlagandan keyin to'g'ri
+// ishlaydi: birlashgan qator bitta operatorning raqamini olib yuradi
+// va eski `hotel_id` bilan tanlansa, qolgan operatorlarning turlari
+// jimgina yo'qoladi. Shuning uchun hozircha faqat `hotel_db_id`
+// qo'shiladi — frontend o'tgach birlashtirish yoqiladi.
 func BuildHotelSummaries(tickets []*models.Ticket) []models.HotelSummary {
 	hotelMap := map[string]models.HotelSummary{}
 	hotels := make([]models.HotelSummary, 0)
@@ -374,6 +402,7 @@ func BuildHotelSummaries(tickets []*models.Ticket) []models.HotelSummary {
 				Rating:      hotel.Rating,
 				Operator:    ticket.Operator,
 				Destination: ticket.Destination.Name,
+				HotelDBID:   ticket.HotelDBID,
 			}
 			hotels = append(hotels, hotelMap[key])
 		}

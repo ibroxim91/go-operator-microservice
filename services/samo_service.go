@@ -109,6 +109,11 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 	mealPlan := getTrimmed("meal_plan", "")
 	meal := getTrimmed("meal", "")
 	hotelID := getTrimmed("hotel_id", "")
+	// Bizning katalogdagi id. Filtr shu bilan kelsa, har operator uchun
+	// uning o'z id'siga o'giriladi — shunda bitta mehmonxona hamma
+	// operatordan topiladi. `hotel_id` esa eski yo'l: operatorning
+	// o'z raqami, faqat o'sha operatorda ishlaydi.
+	hotelDBID := getTrimmed("hotel_db_id", "")
 	currentUsdCourse := getTrimmed("current_usd_course", "")
 	cheapest := strings.EqualFold(getTrimmed("cheapest", "false"), "true")
 	mostExpensive := strings.EqualFold(getTrimmed("most_expensive", "false"), "true")
@@ -249,6 +254,9 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 	if hotelID != "" {
 		params["HOTELS"] = hotelID
 	}
+	if hotelDBID != "" {
+		params["HOTELS_DB"] = hotelDBID
+	}
 	if cheapest {
 		params["SORT"] = "ASC"
 	}
@@ -271,6 +279,32 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 }
 
 func (s *SamoService) MapParams(mappedParams map[string]string, operatorName string) (map[string]string, bool, error) {
+	// Bizning mehmonxona id'larini shu operatorning raqamlariga o'giramiz.
+	// Operator bu mehmonxonalarni sotmasa, uni umuman so'ramaymiz: filtrsiz
+	// so'rasak, mijoz tanlamagan mehmonxonalar qaytib, filtr buzilardi.
+	if raw := strings.TrimSpace(mappedParams["HOTELS_DB"]); raw != "" {
+		ids := make([]int, 0, 8)
+		for _, part := range splitCSV(raw) {
+			if id, err := strconv.Atoi(strings.TrimSpace(part)); err == nil && id > 0 {
+				ids = append(ids, id)
+			}
+		}
+		operatorIDs, err := repository.GetOperatorHotelIDs(s.DB, operatorName, ids)
+		if err != nil {
+			log.Printf("hotel mapping lookup failed for operator %s: %v", operatorName, err)
+			return nil, false, err
+		}
+		if len(operatorIDs) == 0 {
+			return nil, false, nil
+		}
+		parts := make([]string, 0, len(operatorIDs))
+		for _, id := range operatorIDs {
+			parts = append(parts, strconv.Itoa(id))
+		}
+		mappedParams["HOTELS"] = strings.Join(parts, ",")
+		delete(mappedParams, "HOTELS_DB")
+	}
+
 	stateID, _ := strconv.Atoi(mappedParams["STATEINC"])
 	townFromID, _ := strconv.Atoi(mappedParams["TOWNFROMINC"])
 	townIDs := splitCSV(mappedParams["TOWNS"])
