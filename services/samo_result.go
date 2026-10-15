@@ -236,6 +236,13 @@ func lockRecommendedBadges(ordered, recommendedSlots []*models.Ticket) {
 // Default / price sorts: diversify recommended by price, then strict R + 3N interleave.
 // Recommended-only: diversified recommended list.
 // SkipRecommendedInterleave: price sort only (used by home-offers / hot tours).
+// ApplyStreamTicketSortMode is JSON sort plus always merging the same hotel
+// across check-in dates (stream /selectour-test only).
+func ApplyStreamTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*models.Ticket {
+	mode.GroupAcrossDates = true
+	return ApplyTicketSortMode(tickets, mode)
+}
+
 func ApplyTicketSortMode(tickets []*models.Ticket, mode TicketSortMode) []*models.Ticket {
 
 	// Guruhlash eng boshida: bu yerda ro'yxat to'liq (hamma operator, hamma

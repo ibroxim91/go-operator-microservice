@@ -42,7 +42,7 @@ func hotelGroupKey(ticket *models.Ticket, acrossDates bool) string {
 	}
 
 	if ticket.HotelDBID > 0 {
-		return fmt.Sprintf("db:%d", ticket.HotelDBID)
+		return fmt.Sprintf("db:%d%s", ticket.HotelDBID, suffix)
 	}
 
 	// Mapping yo'q: operatorning o'z id'si bilan guruhlaymiz. Bu bir
@@ -50,20 +50,12 @@ func hotelGroupKey(ticket *models.Ticket, acrossDates bool) string {
 	// operatorlar orasida birlashtirmaydi — chunki ular bir xil
 	// mehmonxona ekanini aytadigan narsa yo'q.
 	if len(ticket.TicketHotel) > 0 && ticket.TicketHotel[0].ID > 0 {
-		return fmt.Sprintf("op:%s:%d", ticket.Operator, ticket.TicketHotel[0].ID)
+		return fmt.Sprintf("op:%s:%d%s", ticket.Operator, ticket.TicketHotel[0].ID, suffix)
 	}
 
 	// Ikkala id ham yo'q. Bu yerda taxmin qilish xavfli, shuning uchun
 	// taklif o'z guruhida qoladi.
-	return fmt.Sprintf("uniq:%s:%s", ticket.Operator, ticket.TourOperatorID)
-}
-
-func hotelGroupKey(ticket *models.Ticket) string {
-	checkin := strings.TrimSpace(ticket.DepartureDate)
-	if checkin == "" {
-		checkin = strings.TrimSpace(ticket.DepartureTime)
-	}
-	return fmt.Sprintf("%s|%s|%d", hotelIdentityKey(ticket), checkin, ticket.Nights)
+	return fmt.Sprintf("uniq:%s:%s%s", ticket.Operator, ticket.TourOperatorID, suffix)
 }
 
 // cheaperOffer — 0 yoki manfiy narx "eng arzon" bo'lib qolmasligi uchun.
@@ -165,6 +157,10 @@ func GroupTicketsByHotel(tickets []*models.Ticket, acrossDates bool) []*models.T
 		out = append(out, group.winner)
 	}
 	return out
+}
+
+func GroupTicketsByHotelMergeDates(tickets []*models.Ticket) []*models.Ticket {
+	return GroupTicketsByHotel(tickets, true)
 }
 
 // dedupeOffers bir xil taklifni ikki marta ko'rsatmaydi.
