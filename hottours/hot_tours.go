@@ -18,7 +18,7 @@ import (
 	"go-operator-service/utils"
 )
 
-const hotToursURL = "https://api.tourvisor.ru/search/api/v1/tours/hots?departureId=106&countryIds=1,2,8,9,13,16,36&currency=USD&onlyCharter=true&limit=50"
+const hotToursURL = "https://api.tourvisor.ru/search/api/v1/tours/hots?departureId=106&countryIds=1,2,8,9,13,16,36&currency=USD&onlyCharter=true&limit=200"
 
 const hotToursFeaturedCount = 4
 
