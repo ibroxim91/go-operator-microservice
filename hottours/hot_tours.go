@@ -94,11 +94,7 @@ func FetchHotTours(ctx context.Context, usdCourse float64) (*models.AsyncSamoRes
 	if err != nil {
 		return nil, err
 	}
-	tickets := make([]*models.Ticket, 0, len(items))
-	for _, item := range items {
-		tickets = append(tickets, mapHotTour(item, usdCourse))
-	}
-	ordered := orderHotTours(tickets)
+	ordered := orderHotTours(ticketsFromHotItems(items, usdCourse))
 	return &models.AsyncSamoResult{
 		Status: true,
 		Data: models.AsyncSamoData{
@@ -134,6 +130,17 @@ func decodeHotTours(body []byte) ([]hotTourItem, error) {
 		return nil, err
 	}
 	return payload.Data, nil
+}
+
+func ticketsFromHotItems(items []hotTourItem, usdCourse float64) []*models.Ticket {
+	tickets := make([]*models.Ticket, 0, len(items))
+	for _, item := range items {
+		if hotelPhotoURL(item.Hotel.Picturelink) == "" {
+			continue
+		}
+		tickets = append(tickets, mapHotTour(item, usdCourse))
+	}
+	return tickets
 }
 
 func mapHotTour(item hotTourItem, usdCourse float64) *models.Ticket {

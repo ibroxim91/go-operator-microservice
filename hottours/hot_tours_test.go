@@ -65,6 +65,24 @@ func TestHotTourDatesMatchBookingFormat(t *testing.T) {
 	}
 }
 
+func TestMapHotTourSkipsWhenHotelHasNoPhoto(t *testing.T) {
+	items, err := decodeHotTours([]byte(`[
+		{"tourId":"with-photo","hotel":{"id":1,"name":"RED","picturelink":"https://cdn.example/a.jpg"},"price":100},
+		{"tourId":"no-photo","hotel":{"id":2,"name":"SEA LIGHT"},"price":80},
+		{"tourId":"blank-photo","hotel":{"id":3,"name":"BLANK","picturelink":"  "},"price":90}
+	]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tickets := ticketsFromHotItems(items, 12500)
+	if len(tickets) != 1 || tickets[0].TourOperatorID != "with-photo" {
+		t.Fatalf("tickets = %+v", tickets)
+	}
+	if tickets[0].HotelPhoto == "" || tickets[0].HotelPhotoCount == 0 {
+		t.Fatalf("photo missing on kept ticket: %+v", tickets[0])
+	}
+}
+
 func TestDecodeHotToursAcceptsTopLevelArray(t *testing.T) {
 	items, err := decodeHotTours([]byte(`[{"tourId":"abc","hotel":{"id":7,"name":"RED"},"price":100}]`))
 	if err != nil {
