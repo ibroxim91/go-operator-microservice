@@ -31,7 +31,12 @@ var client = &http.Client{
 
 // Test rejimdagi so‘rovlarni alohida funksiya
 func HandleTestJob(ctx context.Context, job models.Request, results chan<- models.Result, hotelService *services.HotelService) {
-	payload := map[string]string{"url": job.Url}
+	signedURL, err := services.SignURL(job.Operator, job.Url)
+	if err != nil {
+		results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
+		return
+	}
+	payload := map[string]string{"url": signedURL}
 	bodyBytes, _ := json.Marshal(payload)
 	testURL := os.Getenv("TEST_URL")
 	logger.Log.Info().
@@ -52,6 +57,7 @@ func HandleTestJob(ctx context.Context, job models.Request, results chan<- model
 	req.Header.Set("Content-Type", "application/json")
 	//start := time.Now()
 	resp, err := client.Do(req)
+	err = services.RedactError(err)
 
 	//duration := time.Since(start)
 	//logger.Log.Info().

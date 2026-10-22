@@ -84,7 +84,7 @@ func ResolveSharedTour(
 	hotelService.BeginSearch()
 	defer hotelService.EndSearch()
 
-	parsed, err := fetchSearchTourPage(ctx, payload.SearchURL, 1)
+	parsed, err := fetchSearchTourPage(ctx, operator, payload.SearchURL, 1)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -103,7 +103,7 @@ func ResolveSharedTour(
 
 	totalPages := parsed.SearchTour_PRICES.Pager.Total
 	for page := 2; page <= totalPages; page++ {
-		pageParsed, pageErr := fetchSearchTourPage(ctx, payload.SearchURL, page)
+		pageParsed, pageErr := fetchSearchTourPage(ctx, operator, payload.SearchURL, page)
 		if pageErr != nil {
 			logger.Log.Warn().
 				Err(pageErr).
@@ -173,8 +173,12 @@ func findPriceByTourID(prices []models.Price, tourID string) *models.Price {
 	return nil
 }
 
-func fetchSearchTourPage(ctx context.Context, baseURL string, page int) (*models.SearchTourResponse, error) {
+func fetchSearchTourPage(ctx context.Context, operator, baseURL string, page int) (*models.SearchTourResponse, error) {
 	pageURL, err := buildShareSearchPageURL(baseURL, page)
+	if err != nil {
+		return nil, err
+	}
+	pageURL, err = services.SignURL(operator, pageURL)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +204,7 @@ func fetchSearchTourPage(ctx context.Context, baseURL string, page int) (*models
 
 	resp, err := shareHTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, services.RedactError(err)
 	}
 	defer resp.Body.Close()
 

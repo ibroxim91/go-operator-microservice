@@ -25,13 +25,19 @@ func StreamHandleProdJob(
 		Str("handler", "search-tours").
 		Str("url", job.Url).
 		Msg("Starting production job")
-    req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
+    signedURL, err := services.SignURL(job.Operator, job.Url)
+    if err != nil {
+        results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
+        return
+    }
+    req, err := http.NewRequestWithContext(ctx, http.MethodGet, signedURL, nil)
     if err != nil {
         results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
         return
     }
 
     resp, err := client.Do(req)
+    err = services.RedactError(err)
     if err != nil {
         results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
         return
