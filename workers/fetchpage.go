@@ -116,6 +116,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 		if !models.IsBronBookable(price.Bron) {
 			continue
 		}
+		if models.IsGDSTour(price.Tour) {
+			continue
+		}
 		ticket := utils.TransformSamoPriceToTicket(
 			price, job.Departure,
 			job.Operator, job.DestCountryName, job.DestImageUrl,

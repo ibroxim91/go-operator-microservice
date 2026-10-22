@@ -68,6 +68,9 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
         if !models.IsBronBookable(price.Bron) {
             continue
         }
+        if models.IsGDSTour(price.Tour) {
+            continue
+        }
         ticket := utils.TransformSamoPriceToTicket(
             price, job.Departure,
             job.Operator, job.DestCountryName, job.DestImageUrl,
