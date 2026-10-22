@@ -64,9 +64,20 @@ func StreamFetchPage(
 			}
 			return
 		}
+	signedURL, err := services.SignURL(job.Operator, url)
+	if err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error signing URL")
+		results <- models.Result{
+			Error: err.Error(),
+		}
+		return
+	}
 	if testMode {
 		// 🔹 Test rejimda POST qilish
-		payload := map[string]string{"url": url}
+		payload := map[string]string{"url": signedURL}
 		bodyBytes, _ := json.Marshal(payload)
 		testURL := os.Getenv("TEST_URL")
 		// logger.Log.Info().
@@ -88,7 +99,7 @@ func StreamFetchPage(
 	} else {
 		// 🔹 Production rejimda GET qilish
 		
-		req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, signedURL, nil)
 		if err != nil {
 			logger.Log.Error().
 				Err(err).
@@ -101,6 +112,7 @@ func StreamFetchPage(
 		}
 	}
 	resp, err = client.Do(req)
+	err = services.RedactError(err)
 
 	if err != nil {
 		logger.Log.Error().
@@ -139,6 +151,9 @@ func StreamFetchPage(
 			continue
 		}
 		if !models.IsBronBookable(price.Bron) {
+			continue
+		}
+		if models.IsGDSTour(price.Tour) {
 			continue
 		}
 		ticket := utils.TransformSamoPriceToTicket(

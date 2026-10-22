@@ -17,6 +17,7 @@ import (
 	"go-operator-service/services"
 	"math"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -102,7 +103,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 			Country: "Uzbekistan",
 		},
 		PassengerCount: price.Adult + price.Child,
-		Rating:         4.5,
+		Rating:         StarRating(price.Star),
 		DurationDays:   price.Nights,
 		Destination: models.DestinationInfo{
 			ID:   price.TownKey,
@@ -187,6 +188,28 @@ func buildCountryImageURL(countrImageUrl string) string {
     mediaURL := strings.TrimRight(os.Getenv("MEDIA_URL"), "/")
 
     return fmt.Sprintf("%s%s", mediaURL, countrImageUrl)
+}
+
+var leadingStarNumber = regexp.MustCompile(`^\s*([1-5](?:[.,]5)?)`)
+
+// StarRating — operator bergan yulduz satridan son: "5*", "5* DELUXE",
+// "3*+", "3.5", "****". Frontend ticket.rating ni "N звёзды" deb
+// ko'rsatadi; ilgari hammasiga 4.5 yozilardi. Son topilmasa
+// ("Boutique", "VILLA", "N/A") 0 qaytadi — soxta qiymat o'rniga.
+func StarRating(star string) float64 {
+	trimmed := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(star), "HV-"))
+	if trimmed != "" && strings.Trim(trimmed, "*") == "" && len(trimmed) <= 5 {
+		return float64(len(trimmed))
+	}
+	m := leadingStarNumber.FindStringSubmatch(trimmed)
+	if m == nil {
+		return 0
+	}
+	v, err := strconv.ParseFloat(strings.Replace(m[1], ",", ".", 1), 64)
+	if err != nil {
+		return 0
+	}
+	return v
 }
 
 func GetHotel(price *models.Price, hotelName string) []models.TicketHotel {

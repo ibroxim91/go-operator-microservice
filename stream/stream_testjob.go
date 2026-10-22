@@ -40,8 +40,15 @@ func StreamHandleTestJob(
 		Str("handler", "search-tours").
 		Str("url", job.Url).
 		Msg("Starting test job")
+    signedURL, err := services.SignURL(job.Operator, job.Url)
+    if err != nil {
+        results <- models.Result{
+            Error: err.Error(),
+        }
+        return
+    }
     payload := map[string]string{
-        "url": job.Url,
+        "url": signedURL,
     }
 
     bodyBytes, _ := json.Marshal(payload)
@@ -115,6 +122,9 @@ func StreamHandleTestJob(
             continue
         }
         if !models.IsBronBookable(price.Bron) {
+            continue
+        }
+        if models.IsGDSTour(price.Tour) {
             continue
         }
 

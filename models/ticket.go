@@ -33,6 +33,18 @@ func (b BoolString) Bool() bool {
 	return bool(b)
 }
 
+// IsGDSTour reports whether the operator built the tour on GDS flights.
+//
+// SimpleTravel sells charter and block-seat tours only. Operators mark GDS
+// tours in the tour name itself ("MY: Куала-Лумпур из Ташкента (GDS)",
+// "Бали: из ТАШКЕНТ Динамик + ГДС (UZ)"); block tours say "BLOCK" or "блок".
+// Measured 2026-10-15 across all five operators: 74 of 171 tours from
+// Tashkent carry the mark.
+func IsGDSTour(tourName string) bool {
+	upper := strings.ToUpper(tourName)
+	return strings.Contains(upper, "GDS") || strings.Contains(upper, "ГДС")
+}
+
 // IsBronBookable reports whether SAMO marks the offer as bookable.
 func IsBronBookable(bron BoolString) bool {
 	return bron.Bool()

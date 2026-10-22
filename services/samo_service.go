@@ -540,7 +540,8 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 			urlValues.Set(k, v)
 			queryKeyParams[k] = v
 		}
-		urlValues.Set("oauth_token", service.OAuthToken)
+		// oauth_token bu yerda qo'shilmaydi — so'rov yuborilishidan oldin
+		// SignURL qo'shadi (operator_token.go).
 
 		queryKey := makeQueryKey(queryKeyParams)
 		cached, err := repository.GetQueryCache(s.DB, queryKey, service.Name)
@@ -554,10 +555,10 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 		}
 
 		fullURL := service.BaseURL + "?" + urlValues.Encode()
-		fmt.Println("Mapped for ", service, " ", mapped)
-		if cached != nil {
-			fullURL = cached.URL
-		} else {
+		if cached != nil && sameEndpoint(cached.URL, service.BaseURL) {
+			// Eski yozuvlarda token URL ichida saqlangan.
+			fullURL = StripToken(cached.URL)
+		} else if cached == nil {
 			if err := repository.SaveQueryCache(s.DB, queryKey, service.Name, fullURL, urlValues.Get("destination_image_url")); err != nil {
 				logger.Log.Error().
 					Err(err).
