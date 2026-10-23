@@ -26,6 +26,7 @@ func RegisterRoutes(e *echo.Echo, ctx context.Context, hotelService *services.Ho
 	e.GET("/async-samo/tickets", makeAsyncSamoTicketsHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/async-samo/home-offers", makeHomeOffersHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/async-samo/hot-tours", makeHotToursHandler(ctx, hotelService, samoService, cacheClient))
+	e.GET("/async-samo/tours/:tourId", makeTourvisorTourHandler(cacheClient))
 	e.GET("/async-samo/home-offers/recommended", makeHomeOffersRecommendedHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/stream-samo/tickets", makeAsyncSamoTicketsStreamHandler(ctx, hotelService, samoService, cacheClient))
 }
@@ -244,19 +245,19 @@ func loadAsyncSamoTicketsResult(
 
 func usdCourseForSearch(samoService *services.SamoService, jobs []models.Request, samoParams map[string]string) float64 {
 	if samoParams != nil {
-		if rate := parseUsdCourseParam(samoParams["current_usd_course"]); rate > 0 {
+		if rate := parseUsdCourseParam(samoParams["current_usd_course"]); services.UsableUsdRate(rate) {
 			return rate
 		}
 	}
-	if len(jobs) > 0 && jobs[0].CurrentUsdCourse > 0 {
+	if len(jobs) > 0 && services.UsableUsdRate(jobs[0].CurrentUsdCourse) {
 		return jobs[0].CurrentUsdCourse
 	}
 	if samoService == nil {
-		return 0
+		return services.DefaultUsdRate
 	}
 	rate, err := samoService.GetCurrentUsdCourse()
-	if err != nil || rate <= 0 {
-		return 0
+	if err != nil || !services.UsableUsdRate(rate) {
+		return services.DefaultUsdRate
 	}
 	return rate
 }

@@ -490,14 +490,14 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 	queryOperator := strings.TrimSpace(params["OPERATOR"])
 
 	currentUsdCourse := parsePositiveFloat(params["current_usd_course"], 0)
-	if currentUsdCourse <= 0 {
+	if !UsableUsdRate(currentUsdCourse) {
 		fetchedRate, err := s.GetCurrentUsdCourse()
-		if err != nil {
-			logger.Log.Error().
+		if err != nil || !UsableUsdRate(fetchedRate) {
+			logger.Log.Warn().
 				Err(err).
 				Str("handler", "search-tours").
-				Msg("request bind failed")
-			currentUsdCourse = 1.0
+				Msg("usd rate unavailable, using default 12100")
+			currentUsdCourse = DefaultUsdRate
 		} else {
 			currentUsdCourse = fetchedRate
 		}

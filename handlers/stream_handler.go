@@ -157,7 +157,7 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 				return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			}
 		}
-		if currentUsdCourse <= 0 {
+		if !services.UsableUsdRate(currentUsdCourse) {
 			currentUsdCourse = usdCourseForSearch(samoService, jobs, samoParams)
 		}
 
