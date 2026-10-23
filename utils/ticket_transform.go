@@ -20,15 +20,12 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
 )
-
-
 
 // Customer bonus: 3% of operator USD price is discounted for the client
 // (from commission), then converted with CB rate + 200 UZS.
 const (
-	customerBonusRate   = 0.03
+	customerBonusRate    = 0.03
 	usdCourseStreetAddon = 200.0
 )
 
@@ -53,7 +50,7 @@ func formatPriceMillion(priceValueUsz int) string {
 }
 
 func TransformSamoPriceToTicket(price models.Price, departure, operator, country, countrImageUrl string,
-	currentUsdCourse float64, destinationID, departureID, countryID int, hotelService *services.HotelService, 
+	currentUsdCourse float64, destinationID, departureID, countryID int, hotelService *services.HotelService,
 	fromCache bool, requestURL string) *models.Ticket {
 
 	priceValue := 0.0
@@ -64,7 +61,6 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	priceValueUsz := ConvertOperatorPriceToUzs(priceValue, currentUsdCourse)
 	priceStr := formatPriceMillion(priceValueUsz)
 
-
 	hotelName := price.Hotel
 	if strings.Contains(hotelName, "(") && strings.Contains(hotelName, ")") {
 		start := strings.Index(hotelName, "(") + 1
@@ -73,7 +69,7 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 	}
 	hotel := GetHotel(&price, hotelName)
 	slug := strings.ToLower(strings.ReplaceAll(price.Tour, " ", "-"))
-    slug = strings.ReplaceAll(slug, "/", "-")
+	slug = strings.ReplaceAll(slug, "/", "-")
 	countrImageUrl = buildCountryImageURL(countrImageUrl)
 	ticket := &models.Ticket{
 		TourOperatorID:    price.ID,
@@ -103,6 +99,8 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 			Country: "Uzbekistan",
 		},
 		PassengerCount: price.Adult + price.Child,
+		Adults:         price.Adult,
+		Childs:         price.Child,
 		Rating:         StarRating(price.Star),
 		DurationDays:   price.Nights,
 		Destination: models.DestinationInfo{
@@ -174,20 +172,20 @@ func TransformSamoPriceToTicket(price models.Price, departure, operator, country
 }
 
 func buildCountryImageURL(countrImageUrl string) string {
-    // Agar countrImageUrl "country-images" bilan boshlasa, oldiga /resources/media/ qo'shamiz
-    if strings.HasPrefix(countrImageUrl, "country-images") {
-        countrImageUrl = "/resources/media/" + countrImageUrl
-    }
+	// Agar countrImageUrl "country-images" bilan boshlasa, oldiga /resources/media/ qo'shamiz
+	if strings.HasPrefix(countrImageUrl, "country-images") {
+		countrImageUrl = "/resources/media/" + countrImageUrl
+	}
 
-    // Agar countrImageUrl boshida slash bo'lmasa, qo'shamiz (MEDIA_URL bilan birlashtirish uchun)
-    if !strings.HasPrefix(countrImageUrl, "/") {
-        countrImageUrl = "/" + countrImageUrl
-    }
+	// Agar countrImageUrl boshida slash bo'lmasa, qo'shamiz (MEDIA_URL bilan birlashtirish uchun)
+	if !strings.HasPrefix(countrImageUrl, "/") {
+		countrImageUrl = "/" + countrImageUrl
+	}
 
-    // MEDIA_URL oxiridagi slashni olib tashlab, keyin birlashtiramiz
-    mediaURL := strings.TrimRight(os.Getenv("MEDIA_URL"), "/")
+	// MEDIA_URL oxiridagi slashni olib tashlab, keyin birlashtiramiz
+	mediaURL := strings.TrimRight(os.Getenv("MEDIA_URL"), "/")
 
-    return fmt.Sprintf("%s%s", mediaURL, countrImageUrl)
+	return fmt.Sprintf("%s%s", mediaURL, countrImageUrl)
 }
 
 var leadingStarNumber = regexp.MustCompile(`^\s*([1-5](?:[.,]5)?)`)

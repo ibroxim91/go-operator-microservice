@@ -81,6 +81,8 @@ type Ticket struct {
 	HotelPhotos       []HotelPhotos   `json:"hotel_photos"`
 	Departure         DepartureInfo   `json:"departure"`
 	PassengerCount    int             `json:"passenger_count"`
+	Adults            int             `json:"adults"`
+	Childs            int             `json:"childs"`
 	Rating            float64         `json:"rating"`
 	DurationDays      int             `json:"duration_days"`
 	Destination       DestinationInfo `json:"destination"`

@@ -44,6 +44,8 @@ type Query struct {
 	NightsFrom    int
 	NightsTo      int
 	Adults        int
+	Childs        int
+	ChildrenAges  []int
 	Meal          int
 	HotelCategory int
 	HotelIDs      []int
@@ -127,6 +129,7 @@ func MapParams(db *sql.DB, params map[string]string) (*Query, bool, error) {
 	if adults > 6 {
 		adults = 6
 	}
+	childs, childrenAges := tourvisorChildren(params)
 
 	query := &Query{
 		DepartureID:   regionMapping.OperatorTownID,
@@ -138,6 +141,8 @@ func MapParams(db *sql.DB, params map[string]string) (*Query, bool, error) {
 		NightsFrom:    nightsFrom,
 		NightsTo:      nightsTo,
 		Adults:        adults,
+		Childs:        childs,
+		ChildrenAges:  childrenAges,
 		Meal:          meal,
 		HotelCategory: hotelCategory,
 		PriceFrom:     atoi(params["COSTMIN"]),
@@ -276,6 +281,34 @@ func hotelIDs(raw string) []int {
 	return ids
 }
 
+const maxTourvisorChildren = 3
+
+func tourvisorChildren(params map[string]string) (int, []int) {
+	count := atoi(params["CHILD"])
+	if count <= 0 {
+		return 0, nil
+	}
+	if count > maxTourvisorChildren {
+		count = maxTourvisorChildren
+	}
+	parts := splitCSV(params["AGES"])
+	ages := make([]int, 0, count)
+	for _, part := range parts {
+		if len(ages) == count {
+			break
+		}
+		age := atoi(part)
+		if age < 0 || (age == 0 && strings.TrimSpace(part) != "0") {
+			continue
+		}
+		ages = append(ages, age)
+	}
+	if len(ages) == 0 {
+		return 0, nil
+	}
+	return len(ages), ages
+}
+
 // Values builds the tour-search query. The token is never placed in the URL.
 func (q Query) Values() url.Values {
 	values := url.Values{}
@@ -286,6 +319,12 @@ func (q Query) Values() url.Values {
 	values.Set("nightsFrom", strconv.Itoa(q.NightsFrom))
 	values.Set("nightsTo", strconv.Itoa(q.NightsTo))
 	values.Set("adults", strconv.Itoa(q.Adults))
+	if q.Childs > 0 {
+		values.Set("childs", strconv.Itoa(q.Childs))
+		for _, age := range q.ChildrenAges {
+			values.Add("childrenAges", strconv.Itoa(age))
+		}
+	}
 	values.Set("currency", "CU")
 	values.Set("onlyCharter", "true")
 	if q.Meal > 0 {
@@ -798,6 +837,8 @@ func mapSearchTour(hotel searchHotel, tour searchTour, query Query, usdCourse fl
 		Nights:          nights,
 		DurationDays:    nights,
 		PassengerCount:  adults + children,
+		Adults:          adults,
+		Childs:          children,
 		Price:           formatPriceMillion(priceUZS),
 		PriceFull:       priceUZS,
 		OperatorPrice:   strconv.FormatFloat(tour.Price, 'f', -1, 64),

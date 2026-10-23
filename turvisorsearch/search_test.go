@@ -106,6 +106,35 @@ func TestMakeURLUsesCharterAndCUWithoutToken(t *testing.T) {
 	}
 }
 
+func TestValuesRepeatsChildrenAges(t *testing.T) {
+	query := Query{
+		DepartureID:  106,
+		CountryID:    1,
+		DateFrom:     time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC),
+		DateTo:       time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC),
+		NightsFrom:   7,
+		NightsTo:     10,
+		Adults:       2,
+		Childs:       2,
+		ChildrenAges: []int{5, 11},
+	}
+	values := query.Values()
+	if values.Get("childs") != "2" {
+		t.Fatalf("childs = %s", values.Get("childs"))
+	}
+	ages := values["childrenAges"]
+	if len(ages) != 2 || ages[0] != "5" || ages[1] != "11" {
+		t.Fatalf("childrenAges = %v", ages)
+	}
+}
+
+func TestTourvisorChildrenKeepsFirstThree(t *testing.T) {
+	childs, ages := tourvisorChildren(map[string]string{"CHILD": "4", "AGES": "5,11,4,8"})
+	if childs != 3 || len(ages) != 3 || ages[0] != 5 || ages[1] != 11 || ages[2] != 4 {
+		t.Fatalf("childs=%d ages=%v", childs, ages)
+	}
+}
+
 func TestHotelFilterOnlyWithOperator(t *testing.T) {
 	if includeHotelFilter("") {
 		t.Fatal("empty operator must not pass hotel ids")

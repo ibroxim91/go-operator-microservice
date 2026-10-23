@@ -129,6 +129,16 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 	if children == "" || parsePositiveInt(children) < 0 {
 		children = "0"
 	}
+	childCount := parsePositiveInt(children)
+	childAges := ""
+	if childCount > 0 {
+		parsedAges, agesOK := normalizeChildAges(getTrimmed("child_ages", ""), childCount)
+		if !agesOK {
+			log.Println("child ages missing or do not match children count")
+			return map[string]string{}, true, false, nil
+		}
+		childAges = parsedAges
+	}
 	if countryID == "" && destination != "" {
 		destinationID := parsePositiveInt(destination)
 		if destinationID > 0 {
@@ -202,6 +212,9 @@ func (s *SamoService) GetSamoParams(c echo.Context) (map[string]string, bool, bo
 
 	if currentUsdCourse != "" {
 		params["current_usd_course"] = currentUsdCourse
+	}
+	if childAges != "" {
+		params["AGES"] = childAges
 	}
 
 	if dateFrom != "" {
@@ -608,6 +621,29 @@ func parsePositiveInt(value string) int {
 		return 0
 	}
 	return i
+}
+
+func normalizeChildAges(raw string, count int) (string, bool) {
+	if count <= 0 {
+		return "", true
+	}
+	parts := strings.Split(raw, ",")
+	ages := make([]string, 0, count)
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		age, err := strconv.Atoi(part)
+		if err != nil || age < 0 || age > 12 {
+			return "", false
+		}
+		ages = append(ages, strconv.Itoa(age))
+	}
+	if len(ages) != count {
+		return "", false
+	}
+	return strings.Join(ages, ","), true
 }
 
 func parseFloatOrDefault(value string, def float64) float64 {

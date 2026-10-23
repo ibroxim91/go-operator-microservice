@@ -166,6 +166,8 @@ func mapTourDetail(detail tourDetail, usdCourse float64) *models.Ticket {
 		Nights:         nights,
 		DurationDays:   nights,
 		PassengerCount: passengers,
+		Adults:         detail.Adults,
+		Childs:         detail.Childs,
 		MinPerson:      passengers,
 		MaxPerson:      passengers,
 		Price:          formatHotPriceMillion(priceUZS),
