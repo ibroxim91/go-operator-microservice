@@ -44,9 +44,18 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 			ch <- nil
 			return
 		}
+	signedURL, err := services.SignURL(job.Operator, url)
+	if err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("handler", "search-tours").
+			Msg("error signing URL")
+		ch <- nil
+		return
+	}
 	if testMode {
 		// 🔹 Test rejimda POST qilish
-		payload := map[string]string{"url": url}
+		payload := map[string]string{"url": signedURL}
 		bodyBytes, _ := json.Marshal(payload)
 		testURL := os.Getenv("TEST_URL")
 		// logger.Log.Info().
@@ -71,7 +80,7 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 			Str("url", url).
 			Msg("Starting production job")
 		
-		req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, signedURL, nil)
 		if err != nil {
 			logger.Log.Error().
 				Err(err).
@@ -82,6 +91,7 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 		}
 	}
 	resp, err = client.Do(req)
+	err = services.RedactError(err)
 
 	if err != nil {
 		logger.Log.Error().
@@ -114,6 +124,9 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 			continue
 		}
 		if !models.IsBronBookable(price.Bron) {
+			continue
+		}
+		if models.IsGDSTour(price.Tour) {
 			continue
 		}
 		ticket := utils.TransformSamoPriceToTicket(

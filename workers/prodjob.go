@@ -15,7 +15,12 @@ import (
 
 // Production rejimdagi so‘rovlar
 func HandleProdJob(ctx context.Context, job models.Request, results chan<- models.Result, hotelService *services.HotelService) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Url, nil)
+	signedURL, err := services.SignURL(job.Operator, job.Url)
+	if err != nil {
+		results <- models.Result{Error: fmt.Sprintf("Error creating request: %v", err)}
+		return
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, signedURL, nil)
        logger.Log.Info().
         Str("handler", "search-tours").
         Str("url", job.Url).
@@ -30,6 +35,7 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
 	}
 
 	resp, err := client.Do(req)
+	err = services.RedactError(err)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -66,6 +72,9 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
             continue
         }
         if !models.IsBronBookable(price.Bron) {
+            continue
+        }
+        if models.IsGDSTour(price.Tour) {
             continue
         }
         ticket := utils.TransformSamoPriceToTicket(
