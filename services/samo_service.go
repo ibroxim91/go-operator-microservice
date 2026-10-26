@@ -39,6 +39,13 @@ func NewSamoService(db *sql.DB, cacheClient *cache.RedisCache) *SamoService {
 	}
 }
 
+func (s *SamoService) Currency() *CurrencyService {
+	if s == nil {
+		return nil
+	}
+	return s.currencyService
+}
+
 func (s *SamoService) getServiceConfigs() []SamoServiceConfig {
 	services := []SamoServiceConfig{
 		{
@@ -502,20 +509,6 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 	configs := s.getServiceConfigs()
 	queryOperator := strings.TrimSpace(params["OPERATOR"])
 
-	currentUsdCourse := parsePositiveFloat(params["current_usd_course"], 0)
-	if !UsableUsdRate(currentUsdCourse) {
-		fetchedRate, err := s.GetCurrentUsdCourse()
-		if err != nil || !UsableUsdRate(fetchedRate) {
-			logger.Log.Warn().
-				Err(err).
-				Str("handler", "search-tours").
-				Msg("usd rate unavailable, using default 12100")
-			currentUsdCourse = DefaultUsdRate
-		} else {
-			currentUsdCourse = fetchedRate
-		}
-	}
-
 	for _, service := range configs {
 		if queryOperator != "" && service.Name != queryOperator {
 			continue
@@ -590,6 +583,7 @@ func (s *SamoService) MakeURLs(params map[string]string) ([]models.Request, erro
 		if page == 0 {
 			page = 1
 		}
+		currentUsdCourse := s.OperatorUsdRate(service.Name)
 
 		urls = append(urls, models.Request{
 			Url:              fullURL,

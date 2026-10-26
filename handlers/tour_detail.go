@@ -15,11 +15,7 @@ import (
 func makeTourvisorTourHandler(cacheClient *cache.RedisCache) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		tourID := strings.TrimSpace(c.Param("tourId"))
-		course, err := services.NewCurrencyService(cacheClient).GetUsdRate(c.Request().Context())
-		if err != nil {
-			logger.Log.Error().Err(err).Str("handler", "async-samo/tours").Msg("usd rate failed")
-			return c.JSON(http.StatusBadGateway, map[string]string{"error": "usd rate unavailable"})
-		}
+		course, _ := services.NewCurrencyService(cacheClient).GetUsdRate(c.Request().Context())
 		ticket, err := hottours.FetchTour(c.Request().Context(), tourID, course)
 		if err != nil {
 			logger.Log.Error().Err(err).Str("handler", "async-samo/tours").Str("tour_id", tourID).Msg("tour detail failed")

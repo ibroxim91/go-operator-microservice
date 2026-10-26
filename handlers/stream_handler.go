@@ -90,7 +90,7 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
 		log.Println("samoParams stram ", samoParams)
-		currentUsdCourse := parseUsdCourseParam(samoParams["current_usd_course"])
+		currentUsdCourse := 0.0
 
 		rw, flusher, err := setStreamHeaders(c)
 		if err != nil {
@@ -210,7 +210,7 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				tvErr := turvisorsearch.Stream(reqCtx, samoService.DB, samoParams, currentUsdCourse, func(batch []*models.Ticket) {
+				tvErr := turvisorsearch.Stream(reqCtx, samoService.DB, samoParams, samoService.TourvisorUsdRate(), func(batch []*models.Ticket) {
 					if len(batch) == 0 {
 						return
 					}

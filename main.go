@@ -32,7 +32,7 @@ func main() {
 	DBPassword := os.Getenv("DBPassword")
 	DBName := os.Getenv("DBName")
 	logger.Init()
-	
+
 	conn, err := db.ConnectPostgres(DBHost, DBPort, DBUser, DBPassword, DBName)
 	if err != nil {
 		logger.Log.Fatal().
@@ -70,6 +70,7 @@ func main() {
 	go scheduler.StartPopularDestinationsScheduler(ctx, conn, samoService, cacheClient, hotelService)
 	go scheduler.StartHomeOffersScheduler(ctx, conn, samoService, cacheClient, hotelService)
 	go scheduler.StartHotToursScheduler(ctx, cacheClient)
+	go scheduler.StartCurrencyRateScheduler(ctx, samoService.Currency())
 
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
 	if frontendOrigin == "" {

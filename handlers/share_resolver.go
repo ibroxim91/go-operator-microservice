@@ -65,20 +65,14 @@ func ResolveSharedTour(
 	}
 
 	meta := parseShareMetaFromURL(payload.SearchURL)
-	if rate, err := samoService.GetCurrentUsdCourse(); err != nil || !services.UsableUsdRate(rate) {
-		logger.Log.Warn().
-			Err(err).
-			Str("handler", "async-samo/tickets").
-			Str("shared_token", token).
-			Msg("failed to get usd rate for shared tour")
-		meta.currentUsdCourse = services.DefaultUsdRate
-	} else {
-		meta.currentUsdCourse = rate
-	}
-
 	operator := payload.Operator
 	if operator == "" {
 		operator = meta.operator
+	}
+	if strings.EqualFold(operator, "turvisor") || operator == "" {
+		meta.currentUsdCourse = samoService.TourvisorUsdRate()
+	} else {
+		meta.currentUsdCourse = samoService.OperatorUsdRate(operator)
 	}
 
 	hotelService.BeginSearch()

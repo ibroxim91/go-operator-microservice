@@ -22,23 +22,19 @@ import (
 	"strings"
 )
 
-// Customer bonus: 3% of operator USD price is discounted for the client
-// (from commission), then converted with CB rate + 200 UZS.
-const (
-	customerBonusRate    = 0.03
-	usdCourseStreetAddon = 200.0
-)
+// Customer bonus: 3% of operator USD price is discounted for the client,
+// then converted with that operator's USD rate.
+const customerBonusRate = 0.03
 
 // ConvertOperatorPriceToUzs applies:
 // 1) operator USD − 3% client bonus
-// 2) remaining × (CB course + 200)
+// 2) remaining × operator USD rate
 func ConvertOperatorPriceToUzs(operatorUsd, currentUsdCourse float64) int {
 	if operatorUsd <= 0 || currentUsdCourse <= 0 {
 		return 0
 	}
 	discountedUsd := operatorUsd * (1 - customerBonusRate)
-	adjustedCourse := currentUsdCourse + usdCourseStreetAddon
-	return int(math.Round(discountedUsd * adjustedCourse))
+	return int(math.Round(discountedUsd * currentUsdCourse))
 }
 
 func formatPriceMillion(priceValueUsz int) string {

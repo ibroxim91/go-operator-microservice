@@ -244,22 +244,13 @@ func loadAsyncSamoTicketsResult(
 }
 
 func usdCourseForSearch(samoService *services.SamoService, jobs []models.Request, samoParams map[string]string) float64 {
-	if samoParams != nil {
-		if rate := parseUsdCourseParam(samoParams["current_usd_course"]); services.UsableUsdRate(rate) {
-			return rate
-		}
-	}
 	if len(jobs) > 0 && services.UsableUsdRate(jobs[0].CurrentUsdCourse) {
 		return jobs[0].CurrentUsdCourse
 	}
-	if samoService == nil {
-		return services.DefaultUsdRate
+	if samoService != nil {
+		return samoService.TourvisorUsdRate()
 	}
-	rate, err := samoService.GetCurrentUsdCourse()
-	if err != nil || !services.UsableUsdRate(rate) {
-		return services.DefaultUsdRate
-	}
-	return rate
+	return services.DefaultUsdRate
 }
 
 func parseRequestedPage(samoParams map[string]string) int {
