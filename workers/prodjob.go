@@ -8,7 +8,6 @@ import (
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/utils"
-	"io/ioutil"
 	"net/http"
 	"sync"
 )
@@ -34,25 +33,13 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
 		return
 	}
 
-	resp, err := client.Do(req)
-	err = services.RedactError(err)
+	_, body, err := services.DoOperator(client, job.Operator, req)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
 			Str("handler", "search-tours").
 			Msg("error fetching")
 		results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
-		return
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		logger.Log.Error().
-			Err(err).
-			Str("handler", "search-tours").
-			Msg("error reading body")
-		results <- models.Result{Error: fmt.Sprintf("Error reading body: %v", err)}
 		return
 	}
 
@@ -86,15 +73,16 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
         formatPrices = append(formatPrices, ticket)
     }
 
-    // Agar 100 tadan kam bo‘lsa → boshqa pagelarni ham olish
-    if !job.FirstPageOnly && len(formatPrices) < 100 && parsed.SearchTour_PRICES.Pager.Total > 1 {
+    // Operator bergan barcha sahifalar olinadi. Ilgari 9-sahifada to'xtardi
+    // (1-sahifada 100+ narx bo'lsa — umuman olinmasdi): UAE'da takliflarning
+    // ~80% i va mehmonxonalarning yarmi qidiruvga tushmasdi. Operatorga
+    // yukni umumiy chegara (services.DoOperator) ushlab turadi.
+    if !job.FirstPageOnly && parsed.SearchTour_PRICES.Pager.Total > 1 {
         ch := make(chan []*models.Ticket)
         var wg sync.WaitGroup
 
-        for page := 2; page <= parsed.SearchTour_PRICES.Pager.Total; page++ {
-            if page == 10{
-                break
-            }
+        lastPage := services.OperatorPagesToFetch(parsed.SearchTour_PRICES.Pager.Total)
+        for page := 2; page <= lastPage; page++ {
             wg.Add(1)
             go func(p int) {
                 defer wg.Done()

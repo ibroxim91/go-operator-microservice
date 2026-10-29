@@ -222,22 +222,33 @@ func loadAsyncSamoTicketsResult(
 
 	usdCourse := usdCourseForSearch(samoService, jobs, samoParams)
 
-	var response *models.AsyncSamoResult
-	if len(jobs) == 0 {
-		response = buildEmptyAsyncSamoResult(page)
-		response.Data.CurrentUsdCourse = usdCourse
-	} else {
-		workerResult := workers.CollectResults(ctx, jobs, len(jobs), hotelService)
-		response = services.BuildAsyncSamoResult(workerResult)
-	}
-
-	if !skipLegacyCache && len(response.Data.Results.Tickets) > 0 {
-		if err := cacheClient.SetCachedAsyncResult(ctx, cacheKey, response, 10*time.Minute); err != nil {
-			logger.Log.Error().
-				Err(err).
-				Str("handler", "async-samo/tickets").
-				Msg("failed to cache async SAMO tickets result")
+	response, shared, err := coalesceSearch(cacheKey, func() (*models.AsyncSamoResult, error) {
+		var response *models.AsyncSamoResult
+		if len(jobs) == 0 {
+			response = buildEmptyAsyncSamoResult(page)
+			response.Data.CurrentUsdCourse = usdCourse
+		} else {
+			workerResult := workers.CollectResults(ctx, jobs, len(jobs), hotelService)
+			response = services.BuildAsyncSamoResult(workerResult)
 		}
+
+		if !skipLegacyCache && len(response.Data.Results.Tickets) > 0 {
+			if err := cacheClient.SetCachedAsyncResult(ctx, cacheKey, response, 10*time.Minute); err != nil {
+				logger.Log.Error().
+					Err(err).
+					Str("handler", "async-samo/tickets").
+					Msg("failed to cache async SAMO tickets result")
+			}
+		}
+		return response, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if shared {
+		logger.Log.Info().
+			Str("handler", "async-samo/tickets").
+			Msg("joined an identical search already in flight")
 	}
 
 	return paginateAsyncSamoResult(ctx, cacheClient, response, page, sortMode), nil
@@ -289,6 +300,7 @@ func paginateAsyncSamoResult(ctx context.Context, cacheClient *cache.RedisCache,
 		response.Data.Results.RecommendedTickets = services.FilterRecommendedTickets(fullTickets)
 	}
 	totalItems := len(fullTickets)
+	response.Data.TotalOffers = services.CountOffers(fullTickets)
 	start := (page - 1) * pageSize
 	if start < 0 {
 		start = 0

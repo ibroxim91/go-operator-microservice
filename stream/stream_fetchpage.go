@@ -41,7 +41,6 @@ func StreamFetchPage(
 
 	testMode := os.Getenv("TEST") == "true"
 
-	var resp *http.Response
 	var err error
 	var req *http.Request
 	// logger.Log.Info().
@@ -111,9 +110,7 @@ func StreamFetchPage(
 			return
 		}
 	}
-	resp, err = client.Do(req)
-	err = services.RedactError(err)
-
+	_, body, err := services.DoOperatorDeepPage(client, job.Operator, req)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -124,13 +121,9 @@ func StreamFetchPage(
 		}
 		return
 	}
-	defer resp.Body.Close()
-
-	// body, err := ioutil.ReadAll(resp.Body)
-	
 
 	var parsed models.SearchTourResponse
-	err = json.NewDecoder(resp.Body).Decode(&parsed)
+	err = json.Unmarshal(body, &parsed)
 	if  err != nil {
 		logger.Log.Error().
 			Err(err).
