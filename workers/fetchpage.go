@@ -9,7 +9,6 @@ import (
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/utils"
-	"io/ioutil"
 	"os"
 	"strconv"
 
@@ -32,7 +31,6 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 
 	testMode := os.Getenv("TEST") == "true"
 
-	var resp *http.Response
 	var err error
 	var req *http.Request
 	url, err := buildURL(job.Url, page)
@@ -90,9 +88,7 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 			return
 		}
 	}
-	resp, err = client.Do(req)
-	err = services.RedactError(err)
-
+	_, body, err := services.DoOperatorPage(client, job.Operator, req, page)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -101,9 +97,6 @@ func FetchPage(ctx context.Context, page int, job models.Request, hotelService *
 		ch <- nil
 		return
 	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
 
 	var parsed models.SearchTourResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -196,18 +195,12 @@ func fetchSearchTourPage(ctx context.Context, operator, baseURL string, page int
 		}
 	}
 
-	resp, err := shareHTTPClient.Do(req)
-	if err != nil {
-		return nil, services.RedactError(err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
+	status, body, err := services.DoOperator(shareHTTPClient, operator, req)
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("unexpected status %d", status)
 	}
 
 	var parsed models.SearchTourResponse

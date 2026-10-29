@@ -13,8 +13,11 @@ type AsyncSamoResult struct {
 }
 
 type AsyncSamoData struct {
-	Links            Links                  `json:"links"`
-	TotalItems       int                    `json:"total_items"`
+	Links      Links `json:"links"`
+	TotalItems int   `json:"total_items"`
+	// TotalOffers — barcha kartalardagi takliflar yig'indisi: bitta karta
+	// bir mehmonxonaning bir nechta taklifini birlashtiradi.
+	TotalOffers      int                    `json:"total_offers"`
 	TotalPages       int                    `json:"total_pages"`
 	PageSize         int                    `json:"page_size"`
 	Total            int                    `json:"total"`

@@ -7,7 +7,6 @@ import (
 	"go-operator-service/models"
 	"go-operator-service/services"
 	"go-operator-service/utils"
-	"io/ioutil"
 	"net/http"
 	"sync"
 
@@ -36,17 +35,9 @@ func StreamHandleProdJob(
         return
     }
 
-    resp, err := client.Do(req)
-    err = services.RedactError(err)
+    _, body, err := services.DoOperator(client, job.Operator, req)
     if err != nil {
         results <- models.Result{Error: fmt.Sprintf("Error fetching: %s %v", job.Url, err)}
-        return
-    }
-    defer resp.Body.Close()
-
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        results <- models.Result{Error: fmt.Sprintf("Error reading body: %v", err)}
         return
     }
 
