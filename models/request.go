@@ -14,4 +14,7 @@ type Request struct {
 	Istest           bool `json:"test"`
 	Page             int  `json:"page"`
 	FirstPageOnly    bool `json:"first_page_only"`
+	// MaxPages > 0 bo'lsa, shu sahifadan keyingisi olinmaydi (uzun sana
+	// oralig'i bo'laklarga bo'linganda — services.SplitLongCheckinJobs).
+	MaxPages int `json:"max_pages,omitempty"`
 }

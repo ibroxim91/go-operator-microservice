@@ -82,6 +82,9 @@ func HandleProdJob(ctx context.Context, job models.Request, results chan<- model
         var wg sync.WaitGroup
 
         lastPage := services.OperatorPagesToFetch(parsed.SearchTour_PRICES.Pager.Total)
+        if job.MaxPages > 0 && lastPage > job.MaxPages {
+            lastPage = job.MaxPages
+        }
         for page := 2; page <= lastPage; page++ {
             wg.Add(1)
             go func(p int) {
