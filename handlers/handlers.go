@@ -128,6 +128,7 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 		if len(jobs) == 0 {
 			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
 		}
+		jobs = services.SplitLongCheckinJobs(jobs)
 
 		result, err := loadAsyncSamoTicketsResult(
 			ctx,

@@ -24,7 +24,9 @@ var client = &http.Client{
 		MaxConnsPerHost:       100,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second,
+		// Operator og'ir qidiruvda birinchi baytni 10 s dan kech berishi
+		// mumkin (Kompas, ko'p shaharli yo'nalish) — 10 s da natija yo'qolardi.
+		ResponseHeaderTimeout: 20 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	},
 }
