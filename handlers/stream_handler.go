@@ -28,8 +28,11 @@ type StreamPayload struct {
 	Total            int                   `json:"total"`
 	TotalPages       int                   `json:"total_pages"`
 	TotalItems       int                   `json:"total_items"`
-	FromCache        bool                  `json:"from_cache"`
-	CurrentUsdCourse float64               `json:"current_usd_course"`
+	// TotalOffers — guruhlangan kartalardagi barcha takliflar yig'indisi
+	// (REST AsyncSamoData.total_offers bilan bir xil ma'no).
+	TotalOffers      int     `json:"total_offers"`
+	FromCache        bool    `json:"from_cache"`
+	CurrentUsdCourse float64 `json:"current_usd_course"`
 }
 
 type streamUpdate struct {
@@ -167,6 +170,7 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 				Prices:           []*models.Ticket{},
 				Hotels:           []models.HotelSummary{},
 				End:              true,
+				TotalOffers:      0,
 				CurrentUsdCourse: currentUsdCourse,
 			})
 		}
@@ -244,6 +248,7 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 				Total:            len(grouped),
 				TotalPages:       (len(grouped) + 99) / 100,
 				TotalItems:       len(grouped),
+				TotalOffers:      services.CountOffers(grouped),
 				CurrentUsdCourse: currentUsdCourse,
 			})
 		}
@@ -264,9 +269,10 @@ func makeAsyncSamoTicketsStreamHandler(ctx context.Context, hotelService *servic
 		if !usePopularDestOnly {
 			grouped := groupedStreamSnapshot(allRaw, sortMode)
 			cacheResult := &models.StreamCacheResult{
-				Tickets: grouped,
-				Hotels:  services.BuildHotelSummaries(grouped),
-				Total:   len(grouped),
+				Tickets:     grouped,
+				Hotels:      services.BuildHotelSummaries(grouped),
+				Total:       len(grouped),
+				TotalOffers: services.CountOffers(grouped),
 			}
 			go cacheClient.SetCachedStreamResult(
 				context.Background(),

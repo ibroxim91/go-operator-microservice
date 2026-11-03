@@ -188,7 +188,8 @@ type TicketHotel struct {
 }
 
 type StreamCacheResult struct {
-	Tickets []*Ticket      `json:"tickets"`
-	Hotels  []HotelSummary `json:"hotels"`
-	Total   int            `json:"total"`
+	Tickets     []*Ticket      `json:"tickets"`
+	Hotels      []HotelSummary `json:"hotels"`
+	Total       int            `json:"total"`
+	TotalOffers int            `json:"total_offers"`
 }

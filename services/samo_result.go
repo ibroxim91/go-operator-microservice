@@ -426,9 +426,10 @@ func BuildStreamCacheResult(tickets []*models.Ticket) *models.StreamCacheResult 
 	}
 
 	return &models.StreamCacheResult{
-		Tickets: marked,
-		Hotels:  BuildHotelSummaries(marked),
-		Total:   len(marked),
+		Tickets:     marked,
+		Hotels:      BuildHotelSummaries(marked),
+		Total:       len(marked),
+		TotalOffers: CountOffers(marked),
 	}
 }
 
@@ -478,9 +479,10 @@ func ApplyPopularDestCacheResult(
 	}
 
 	return &models.StreamCacheResult{
-		Tickets: marked,
-		Hotels:  BuildHotelSummaries(marked),
-		Total:   len(marked),
+		Tickets:     marked,
+		Hotels:      BuildHotelSummaries(marked),
+		Total:       len(marked),
+		TotalOffers: CountOffers(marked),
 	}
 }
 
@@ -547,9 +549,10 @@ func SlicePopularDestCacheResult(
 	)
 
 	return &models.StreamCacheResult{
-		Tickets: tickets,
-		Hotels:  BuildHotelSummaries(tickets),
-		Total:   len(tickets),
+		Tickets:     tickets,
+		Hotels:      BuildHotelSummaries(tickets),
+		Total:       len(tickets),
+		TotalOffers: CountOffers(tickets),
 	}
 }
 

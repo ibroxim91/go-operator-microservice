@@ -372,6 +372,11 @@ func buildStreamPayloadFromAsyncCache(cached *models.AsyncSamoResult, page int) 
 		end = len(tickets)
 	}
 
+	totalOffers := cached.Data.TotalOffers
+	if totalOffers <= 0 {
+		totalOffers = services.CountOffers(tickets)
+	}
+
 	return StreamPayload{
 		Prices:           tickets[start:end],
 		Hotels:           cached.Data.Results.Hotels,
@@ -379,6 +384,7 @@ func buildStreamPayloadFromAsyncCache(cached *models.AsyncSamoResult, page int) 
 		Total:            cached.Data.Total,
 		TotalPages:       (len(tickets) + 99) / 100,
 		TotalItems:       cached.Data.TotalItems,
+		TotalOffers:      totalOffers,
 		FromCache:        true,
 		CurrentUsdCourse: cached.Data.CurrentUsdCourse,
 	}
@@ -398,14 +404,20 @@ func buildStreamPayloadFromCache(cached *models.StreamCacheResult, page int) Str
 		end = len(cached.Tickets)
 	}
 
+	totalOffers := cached.TotalOffers
+	if totalOffers <= 0 {
+		totalOffers = services.CountOffers(cached.Tickets)
+	}
+
 	return StreamPayload{
-		Prices:     cached.Tickets[start:end],
-		Hotels:     cached.Hotels,
-		End:        true,
-		Total:      cached.Total,
-		TotalPages: (len(cached.Tickets) + 99) / 100,
-		TotalItems: cached.Total,
-		FromCache:  true,
+		Prices:      cached.Tickets[start:end],
+		Hotels:      cached.Hotels,
+		End:         true,
+		Total:       cached.Total,
+		TotalPages:  (len(cached.Tickets) + 99) / 100,
+		TotalItems:  cached.Total,
+		TotalOffers: totalOffers,
+		FromCache:   true,
 	}
 }
 
