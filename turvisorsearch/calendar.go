@@ -22,12 +22,15 @@ import (
 // pullik qidiruv boshlamaydi — faqat Redis'dan o'qiydi.
 
 const (
-	calendarDatesURL     = "https://api.tourvisor.ru/search/api/v1/tours/dates"
-	calendarAdults       = 2
-	calendarNightsFrom   = 7
-	calendarNightsTo     = 14
-	calendarWindowDays   = 7 // Tourvisor 21 kungacha ruxsat beradi; 21 kunda kunlarning ~40% bo'sh qoldi
-	calendarHorizonDays  = 90
+	calendarDatesURL    = "https://api.tourvisor.ru/search/api/v1/tours/dates"
+	calendarAdults      = 2
+	calendarNightsFrom  = 7
+	calendarNightsTo    = 14
+	calendarWindowDays  = 7 // Tourvisor 21 kungacha ruxsat beradi; 21 kunda kunlarning ~40% bo'sh qoldi
+	calendarHorizonDays = 90
+	// Avval hamma davlatning yaqin 60 kuni, keyin limit qolsa 61–90.
+	// Limit tugasa yaqin sanalar baribir yangilangan bo'ladi.
+	calendarNearDays     = 60
 	calendarResultsLimit = 300
 	calendarPollEvery    = 5 * time.Second
 	calendarSearchMax    = 4 * time.Minute
@@ -188,6 +191,24 @@ func RefreshCalendars(ctx context.Context, db *sql.DB) {
 		return
 	}
 	started := time.Now()
+	searches, saved := 0, 0
+	for _, pass := range []struct{ from, to int }{
+		{0, calendarNearDays},
+		{calendarNearDays, calendarHorizonDays},
+	} {
+		if ctx.Err() != nil {
+			break
+		}
+		n, ok := refreshPass(ctx, routes, pass.from, pass.to)
+		searches += n
+		saved += ok
+		log.Printf("tourvisor calendar pass days=%d..%d searches=%d saved=%d", pass.from+1, pass.to, n, ok)
+	}
+	log.Printf("tourvisor calendar refresh done routes=%d saved=%d searches=%d took=%s", len(routes), saved, searches, time.Since(started).Round(time.Second))
+}
+
+// refreshPass — barcha yo'nalishlar uchun bitta sana oralig'i (ertadan boshlab kunlar).
+func refreshPass(ctx context.Context, routes []calendarRoute, fromDay, toDay int) (int, int) {
 	jobs := make(chan calendarRoute)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -197,7 +218,7 @@ func RefreshCalendars(ctx context.Context, db *sql.DB) {
 		go func() {
 			defer wg.Done()
 			for route := range jobs {
-				n, ok := refreshRoute(ctx, route)
+				n, ok := refreshRoute(ctx, route, fromDay, toDay)
 				mu.Lock()
 				searches += n
 				if ok {
@@ -217,13 +238,14 @@ feed:
 	}
 	close(jobs)
 	wg.Wait()
-	log.Printf("tourvisor calendar refresh done routes=%d saved=%d searches=%d took=%s", len(routes), saved, searches, time.Since(started).Round(time.Second))
+	return searches, saved
 }
 
-func refreshRoute(ctx context.Context, route calendarRoute) (int, bool) {
+func refreshRoute(ctx context.Context, route calendarRoute, fromDay, toDay int) (int, bool) {
 	today := time.Now().In(moscow)
-	start := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
-	end := start.AddDate(0, 0, calendarHorizonDays-1)
+	tomorrow := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, 1)
+	start := tomorrow.AddDate(0, 0, fromDay)
+	end := tomorrow.AddDate(0, 0, toDay-1)
 
 	dates, err := fetchTourDates(ctx, route.tvDepartureID, route.tvCountryID)
 	if err != nil {
@@ -236,7 +258,8 @@ func refreshRoute(ctx context.Context, route calendarRoute) (int, bool) {
 	}
 
 	prev, _, _ := LoadCalendar(ctx, route.ourDepartureID, route.ourCountryID)
-	prices := map[string]float64{}
+	// Boshqa bosqich kunlari (masalan 61–90) shu bosqichda tegilmaydi.
+	prices := keepOutside(prev, tomorrow, start, end)
 	searches := 0
 	for _, w := range windows {
 		if ctx.Err() != nil {
@@ -273,6 +296,24 @@ func refreshRoute(ctx context.Context, route calendarRoute) (int, bool) {
 		return searches, false
 	}
 	return searches, true
+}
+
+// keepOutside — oldingi kalendardan shu bosqichga kirmaydigan, hali o'tmagan kunlar.
+func keepOutside(prev *Calendar, tomorrow, start, end time.Time) map[string]float64 {
+	out := map[string]float64{}
+	if prev == nil {
+		return out
+	}
+	for date, price := range prev.PricesUSD {
+		d, err := time.Parse("2006-01-02", date)
+		if err != nil || d.Before(tomorrow) {
+			continue
+		}
+		if d.Before(start) || d.After(end) {
+			out[date] = price
+		}
+	}
+	return out
 }
 
 // carryOver — oyna yangilanmasa, undagi eski narxlar qoladi.

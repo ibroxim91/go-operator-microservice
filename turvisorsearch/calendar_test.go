@@ -94,3 +94,30 @@ func TestCalendarSearchHasNoOperatorFilter(t *testing.T) {
 		t.Fatalf("calendar query = %s", v.Encode())
 	}
 }
+
+func TestKeepOutsideLeavesOtherPassAndDropsPast(t *testing.T) {
+	prev := &Calendar{PricesUSD: map[string]float64{
+		"2026-11-03": 500, // o'tgan kun — tashlanadi
+		"2026-11-10": 900, // shu bosqich ichida — yangisi yoziladi
+		"2027-01-20": 800, // 61–90 bosqichi — qoladi
+	}}
+	got := keepOutside(prev, day("2026-11-05"), day("2026-11-05"), day("2027-01-03"))
+	if len(got) != 1 || got["2027-01-20"] != 800 {
+		t.Fatalf("kept = %v", got)
+	}
+	if len(keepOutside(nil, day("2026-11-05"), day("2026-11-05"), day("2027-01-03"))) != 0 {
+		t.Fatal("nil prev")
+	}
+}
+
+func TestCalendarPassesCoverHorizonWithoutGap(t *testing.T) {
+	if calendarNearDays <= 0 || calendarNearDays >= calendarHorizonDays {
+		t.Fatalf("near=%d horizon=%d", calendarNearDays, calendarHorizonDays)
+	}
+	tomorrow := day("2026-11-05")
+	nearEnd := tomorrow.AddDate(0, 0, calendarNearDays-1)
+	farStart := tomorrow.AddDate(0, 0, calendarNearDays)
+	if farStart.Sub(nearEnd) != 24*time.Hour {
+		t.Fatal("passes must touch without gap or overlap")
+	}
+}
