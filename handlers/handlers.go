@@ -10,12 +10,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go-operator-service/cache"
 	"go-operator-service/logger"
 	"go-operator-service/models"
 	"go-operator-service/services"
+	"go-operator-service/turvisorsearch"
 	"go-operator-service/workers"
 
 	"github.com/labstack/echo/v4"
@@ -27,6 +29,7 @@ func RegisterRoutes(e *echo.Echo, ctx context.Context, hotelService *services.Ho
 	e.GET("/async-samo/home-offers", makeHomeOffersHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/async-samo/hot-tours", makeHotToursHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/async-samo/tours/:tourId", makeTourvisorTourHandler(cacheClient))
+	e.GET("/async-samo/tour-calendar", makeTourCalendarHandler(samoService))
 	e.GET("/async-samo/home-offers/recommended", makeHomeOffersRecommendedHandler(ctx, hotelService, samoService, cacheClient))
 	e.GET("/stream-samo/tickets", makeAsyncSamoTicketsStreamHandler(ctx, hotelService, samoService, cacheClient))
 }
@@ -125,7 +128,7 @@ func makeAsyncSamoTicketsHandler(ctx context.Context, hotelService *services.Hot
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to build request URLs"})
 		}
 
-		if len(jobs) == 0 {
+		if len(jobs) == 0 && !tourvisorInSearch(samoService, samoParams) {
 			return c.JSON(http.StatusOK, buildEmptyAsyncSamoResult(page))
 		}
 		jobs = services.SplitLongCheckinJobs(jobs)
@@ -224,13 +227,41 @@ func loadAsyncSamoTicketsResult(
 	usdCourse := usdCourseForSearch(samoService, jobs, samoParams)
 
 	response, shared, err := coalesceSearch(cacheKey, func() (*models.AsyncSamoResult, error) {
+		// Tourvisor (ulanmagan operatorlar) SAMO bilan parallel ketadi.
+		var tvTickets []*models.Ticket
+		var tvWG sync.WaitGroup
+		if tourvisorInSearch(samoService, samoParams) {
+			tvWG.Add(1)
+			go func() {
+				defer tvWG.Done()
+				tvCtx, cancel := context.WithTimeout(ctx, tourvisorSearchBudget)
+				defer cancel()
+				tickets, tvErr := turvisorsearch.Search(tvCtx, samoService.DB, samoParams, samoService.TourvisorUsdRate())
+				if tvErr != nil {
+					logger.Log.Warn().
+						Err(tvErr).
+						Str("handler", "async-samo/tickets").
+						Msg("tourvisor search failed")
+				}
+				tvTickets = tickets
+			}()
+		}
+
 		var response *models.AsyncSamoResult
-		if len(jobs) == 0 {
+		if len(jobs) == 0 && !tourvisorInSearch(samoService, samoParams) {
 			response = buildEmptyAsyncSamoResult(page)
 			response.Data.CurrentUsdCourse = usdCourse
 		} else {
-			workerResult := workers.CollectResults(ctx, jobs, len(jobs), hotelService)
+			workerResult := models.ResultResponse{}
+			if len(jobs) > 0 {
+				workerResult = workers.CollectResults(ctx, jobs, len(jobs), hotelService)
+			}
+			tvWG.Wait()
+			workerResult.Prices = append(workerResult.Prices, tvTickets...)
 			response = services.BuildAsyncSamoResult(workerResult)
+			if response.Data.CurrentUsdCourse == 0 {
+				response.Data.CurrentUsdCourse = usdCourse
+			}
 		}
 
 		if !skipLegacyCache && len(response.Data.Results.Tickets) > 0 {
@@ -253,6 +284,17 @@ func loadAsyncSamoTicketsResult(
 	}
 
 	return paginateAsyncSamoResult(ctx, cacheClient, response, page, sortMode), nil
+}
+
+// tourvisorSearchBudget — Tourvisor qidiruvi javobni shundan ortiq ushlamaydi.
+const tourvisorSearchBudget = 40 * time.Second
+
+// tourvisorInSearch — asosiy qidiruvga Tourvisor qo'shilsinmi.
+// TOURVISOR_IN_SEARCH=1 bo'lmaguncha o'chiq: prod'da alohida yoqiladi.
+func tourvisorInSearch(samoService *services.SamoService, samoParams map[string]string) bool {
+	return envFlagEnabled("TOURVISOR_IN_SEARCH", false) &&
+		samoService != nil && samoService.DB != nil &&
+		turvisorsearch.ShouldSearch(samoParams["OPERATOR"])
 }
 
 func usdCourseForSearch(samoService *services.SamoService, jobs []models.Request, samoParams map[string]string) float64 {
