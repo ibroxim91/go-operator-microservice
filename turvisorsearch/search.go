@@ -53,6 +53,8 @@ type Query struct {
 	PriceTo       int
 	DepartureName string
 	CountryName   string
+	// OperatorIDs bo'sh bo'lsa — barcha operatorlar (faqat kalendar uchun).
+	OperatorIDs []int
 }
 
 // ShouldSearch reports whether this request should call Tourvisor.
@@ -319,11 +321,9 @@ func (q Query) Values() url.Values {
 	values.Set("nightsFrom", strconv.Itoa(q.NightsFrom))
 	values.Set("nightsTo", strconv.Itoa(q.NightsTo))
 	values.Set("adults", strconv.Itoa(q.Adults))
-	if q.Childs > 0 {
-		values.Set("childs", strconv.Itoa(q.Childs))
-		for _, age := range q.ChildrenAges {
-			values.Add("childrenAges", strconv.Itoa(age))
-		}
+	// childs — bolalar YOSHLARI ro'yxati (soni emas), har biri alohida parametr.
+	for _, age := range q.ChildrenAges {
+		values.Add("childs", strconv.Itoa(age))
 	}
 	values.Set("currency", "CU")
 	values.Set("onlyCharter", "true")
@@ -339,12 +339,9 @@ func (q Query) Values() url.Values {
 	if q.PriceTo > 0 {
 		values.Set("priceTo", strconv.Itoa(q.PriceTo))
 	}
-	if len(q.RegionIDs) > 0 {
-		values.Set("regionIds", joinInts(q.RegionIDs))
-	}
-	if len(q.HotelIDs) > 0 {
-		values.Set("hotelIds", joinInts(q.HotelIDs))
-	}
+	addInts(values, "regionIds", q.RegionIDs)
+	addInts(values, "hotelIds", q.HotelIDs)
+	addInts(values, "operatorIds", q.OperatorIDs)
 	return values
 }
 
@@ -401,21 +398,24 @@ func Stream(ctx context.Context, db *sql.DB, params map[string]string, usdCourse
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	searchID, err := startSearch(ctx, query)
-	if err != nil {
-		return err
+
+	operatorIDs, err := liveOperatorIDs(ctx, query.DepartureID)
+	if err != nil || len(operatorIDs) == 0 {
+		log.Printf("tourvisor skip: no operators to search departureId=%d err=%v", query.DepartureID, err)
+		return nil
 	}
+	query.OperatorIDs = operatorIDs
 
 	seen := map[string]struct{}{}
-	fetchNew := func() {
-		hotels, fetchErr := fetchResults(ctx, searchID)
-		if fetchErr != nil {
-			log.Printf("tourvisor results fetch failed searchId=%s err=%v", searchID, fetchErr)
-			return
-		}
+	excluded := excludedOperatorIDs()
+	emitHotels := func(hotels []searchHotel, searchID string) {
 		batch := make([]*models.Ticket, 0)
 		for _, hotel := range hotels {
 			for _, tour := range hotel.Tours {
+				// Ikkinchi himoya: filtr e'tiborsiz qolsa ham ulangan operator turi o'tmaydi.
+				if tour.Operator.ID <= 0 || excluded[tour.Operator.ID] {
+					continue
+				}
 				ticket := mapSearchTour(hotel, tour, *query, usdCourse)
 				if ticket == nil {
 					continue
@@ -437,7 +437,32 @@ func Stream(ctx context.Context, db *sql.DB, params map[string]string, usdCourse
 		}
 	}
 
-	deadline := time.Now().Add(searchWait)
+	resultsKey := resultsCacheKey(*query)
+	if hotels, ok := loadCachedHotels(ctx, resultsKey); ok {
+		emitHotels(hotels, "cache")
+		return nil
+	}
+	if !reserveBillable(ctx, PurposeLive) {
+		return nil
+	}
+
+	searchID, err := startSearch(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	var lastHotels []searchHotel
+	fetchNew := func() {
+		hotels, fetchErr := fetchResults(ctx, searchID)
+		if fetchErr != nil {
+			log.Printf("tourvisor results fetch failed searchId=%s err=%v", searchID, fetchErr)
+			return
+		}
+		lastHotels = hotels
+		emitHotels(hotels, searchID)
+	}
+
+	deadline := time.Now().Add(liveSearchWait())
 	started := time.Now()
 	fetched := false
 	for {
@@ -455,6 +480,7 @@ func Stream(ctx context.Context, db *sql.DB, params map[string]string, usdCourse
 			if !fetched {
 				fetchNew()
 			}
+			saveCachedHotels(resultsKey, lastHotels, statusDone(st))
 			return nil
 		}
 		wait := pollEvery
@@ -465,6 +491,7 @@ func Stream(ctx context.Context, db *sql.DB, params map[string]string, usdCourse
 			if !fetched {
 				fetchNew()
 			}
+			saveCachedHotels(resultsKey, lastHotels, false)
 			return nil
 		}
 		timer := time.NewTimer(wait)
@@ -525,7 +552,12 @@ func waitForStatus(ctx context.Context, searchID string) {
 }
 
 func fetchResults(ctx context.Context, searchID string) ([]searchHotel, error) {
-	endpoint := resultsURL(searchID)
+	return fetchResultsLimit(ctx, searchID, 100)
+}
+
+// fetchResultsLimit — limit natijadagi mehmonxonalar soni (bepul so'rov).
+func fetchResultsLimit(ctx context.Context, searchID string, limit int) ([]searchHotel, error) {
+	endpoint := resultsURL(searchID, limit)
 	log.Printf("tourvisor endpoint results GET %s", endpoint)
 	body, status, err := getJSON(ctx, endpoint)
 	if err != nil {
@@ -585,11 +617,12 @@ func getJSON(ctx context.Context, endpoint string) ([]byte, int, error) {
 }
 
 func statusURL(searchID string) string {
-	return searchURL + "/" + url.PathEscape(searchID) + "/status"
+	// operatorStatus majburiy: usiz Tourvisor 400 qaytaradi.
+	return searchURL + "/" + url.PathEscape(searchID) + "/status?operatorStatus=false"
 }
 
-func resultsURL(searchID string) string {
-	return searchURL + "/" + url.PathEscape(searchID) + "?limit=100"
+func resultsURL(searchID string, limit int) string {
+	return searchURL + "/" + url.PathEscape(searchID) + "?limit=" + strconv.Itoa(limit)
 }
 
 type flexID string
@@ -631,8 +664,14 @@ type searchHotel struct {
 }
 
 type searchTour struct {
-	ID       flexID  `json:"id"`
-	TourID   flexID  `json:"tourId"`
+	ID        flexID `json:"id"`
+	TourID    flexID `json:"tourId"`
+	Name      string `json:"name"`
+	IsCharter *bool  `json:"isCharter"`
+	Operator  struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	} `json:"operator"`
 	Date     string  `json:"date"`
 	Nights   int     `json:"nights"`
 	Price    float64 `json:"price"`
@@ -779,7 +818,7 @@ func decodeResults(body []byte) ([]searchHotel, error) {
 
 func mapSearchTour(hotel searchHotel, tour searchTour, query Query, usdCourse float64) *models.Ticket {
 	tourID := tour.tourID()
-	if tourID == "" || hotel.ID <= 0 {
+	if tourID == "" || hotel.ID <= 0 || !isSellableTour(tour) {
 		return nil
 	}
 	priceUZS := 0
@@ -1106,15 +1145,13 @@ func splitCSV(value string) []string {
 	return out
 }
 
-func joinInts(ids []int) string {
-	parts := make([]string, 0, len(ids))
+// addInts — massiv parametrlar hujjat bo'yicha takrorlanadi (explode=true).
+func addInts(values url.Values, name string, ids []int) {
 	for _, id := range ids {
-		if id <= 0 {
-			continue
+		if id > 0 {
+			values.Add(name, strconv.Itoa(id))
 		}
-		parts = append(parts, strconv.Itoa(id))
 	}
-	return strings.Join(parts, ",")
 }
 
 func normalizeStars(value string) string {

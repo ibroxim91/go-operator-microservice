@@ -96,7 +96,7 @@ func TestMakeURLUsesCharterAndCUWithoutToken(t *testing.T) {
 		"onlyCharter=true",
 		"meal=3",
 		"hotelCategory=4",
-		"regionIds=6%2C8",
+		"regionIds=6&regionIds=8",
 		"priceFrom=500",
 		"priceTo=2000",
 	} {
@@ -119,12 +119,13 @@ func TestValuesRepeatsChildrenAges(t *testing.T) {
 		ChildrenAges: []int{5, 11},
 	}
 	values := query.Values()
-	if values.Get("childs") != "2" {
-		t.Fatalf("childs = %s", values.Get("childs"))
-	}
-	ages := values["childrenAges"]
+	// Hujjat: childs — bolalar yoshlari massivi (soni emas).
+	ages := values["childs"]
 	if len(ages) != 2 || ages[0] != "5" || ages[1] != "11" {
-		t.Fatalf("childrenAges = %v", ages)
+		t.Fatalf("childs = %v", ages)
+	}
+	if _, ok := values["childrenAges"]; ok {
+		t.Fatal("childrenAges is not a Tourvisor parameter")
 	}
 }
 
@@ -181,7 +182,8 @@ func TestMapSearchTourMatchesBookingShape(t *testing.T) {
 	hotel.Region.Name = "Шарм-эль-Шейх"
 	hotel.Country.ID = 1
 	hotel.Country.Name = "Египет"
-	tour := searchTour{ID: "99283456631636", Date: "15.10.2026", Nights: 7, Price: 500, Adults: 2, RoomType: "Standard"}
+	charter := true
+	tour := searchTour{ID: "99283456631636", Date: "15.10.2026", Nights: 7, Price: 500, Adults: 2, RoomType: "Standard", IsCharter: &charter}
 	tour.Meal.Name = "AI"
 	ticket := mapSearchTour(hotel, tour, Query{DepartureID: 106, OurCountryID: 4, Adults: 2}, 12000)
 	if ticket == nil {
