@@ -15,6 +15,7 @@ import (
 
 	"go-operator-service/scheduler"
 	"go-operator-service/services"
+	"go-operator-service/turvisorsearch"
 
 	"go-operator-service/logger"
 
@@ -66,10 +67,12 @@ func main() {
 			Msg("failed to connect redis")
 	}
 	samoService := services.NewSamoService(conn, cacheClient)
+	turvisorsearch.Configure(cacheClient)
 
 	go scheduler.StartPopularDestinationsScheduler(ctx, conn, samoService, cacheClient, hotelService)
 	go scheduler.StartHomeOffersScheduler(ctx, conn, samoService, cacheClient, hotelService)
 	go scheduler.StartHotToursScheduler(ctx, cacheClient)
+	go scheduler.StartTourvisorCalendarScheduler(ctx, conn, cacheClient)
 	go scheduler.StartCurrencyRateScheduler(ctx, samoService.Currency())
 
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
