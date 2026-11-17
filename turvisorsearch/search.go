@@ -131,6 +131,11 @@ func MapParams(db *sql.DB, params map[string]string) (*Query, bool, error) {
 	}
 	childs, childrenAges := tourvisorChildren(params)
 
+	hotelIDsForQuery, ok, err := resolveTourvisorHotelIDs(db, params)
+	if err != nil || !ok {
+		return nil, false, err
+	}
+
 	query := &Query{
 		DepartureID:   regionMapping.OperatorTownID,
 		CountryID:     countryMapping.OperatorStateID,
@@ -145,18 +150,51 @@ func MapParams(db *sql.DB, params map[string]string) (*Query, bool, error) {
 		ChildrenAges:  childrenAges,
 		Meal:          meal,
 		HotelCategory: hotelCategory,
+		HotelIDs:      hotelIDsForQuery,
 		PriceFrom:     atoi(params["COSTMIN"]),
 		PriceTo:       atoi(params["COSTMAX"]),
 		DepartureName: strings.TrimSpace(params["departure_name"]),
 		CountryName:   strings.TrimSpace(countryMapping.CountryName),
 	}
-	if includeHotelFilter(params["OPERATOR"]) {
-		query.HotelIDs = hotelIDs(params["HOTELS"])
-	}
 	if query.DepartureID <= 0 || query.CountryID <= 0 {
 		return nil, false, nil
 	}
 	return query, true, nil
+}
+
+// resolveTourvisorHotelIDs maps catalog `HOTELS_DB` (hotel_db_id) to Tourvisor
+// operator hotel ids. When HOTELS_DB is set but no mapping exists, skip the
+// search — otherwise Tourvisor would return unfiltered hotels.
+// Direct `HOTELS` (operator hotel ids) still works as a fallback.
+func resolveTourvisorHotelIDs(db *sql.DB, params map[string]string) ([]int, bool, error) {
+	if rawDB := strings.TrimSpace(params["HOTELS_DB"]); rawDB != "" {
+		catalogIDs := hotelIDs(rawDB)
+		if len(catalogIDs) == 0 {
+			return nil, false, nil
+		}
+		operatorIDs, err := repository.GetOperatorHotelIDs(db, operatorName, catalogIDs)
+		if err != nil {
+			return nil, false, err
+		}
+		if len(operatorIDs) == 0 {
+			log.Printf("tourvisor hotel_db_id mapping empty for %v — skip", catalogIDs)
+			return nil, false, nil
+		}
+		if len(operatorIDs) > maxHotels {
+			operatorIDs = operatorIDs[:maxHotels]
+		}
+		return operatorIDs, true, nil
+	}
+
+	if raw := strings.TrimSpace(params["HOTELS"]); raw != "" {
+		ids := hotelIDs(raw)
+		if len(ids) == 0 {
+			return nil, false, nil
+		}
+		return ids, true, nil
+	}
+
+	return nil, true, nil
 }
 
 func mapRegionIDs(db *sql.DB, destinationID int) ([]int, bool, error) {
@@ -259,10 +297,6 @@ func mapHotelCategory(db *sql.DB, raw string) (int, bool, error) {
 		return 0, false, nil
 	}
 	return category, true, nil
-}
-
-func includeHotelFilter(operator string) bool {
-	return strings.TrimSpace(operator) != ""
 }
 
 func hotelIDs(raw string) []int {

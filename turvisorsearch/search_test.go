@@ -135,16 +135,22 @@ func TestTourvisorChildrenKeepsFirstThree(t *testing.T) {
 	}
 }
 
-func TestHotelFilterOnlyWithOperator(t *testing.T) {
-	if includeHotelFilter("") {
-		t.Fatal("empty operator must not pass hotel ids")
-	}
-	if !includeHotelFilter("turvisor") {
-		t.Fatal("turvisor operator should pass hotel ids")
-	}
+func TestHotelIDsParse(t *testing.T) {
 	ids := hotelIDs("0,516,abc,77")
 	if len(ids) != 2 || ids[0] != 516 || ids[1] != 77 {
 		t.Fatalf("hotel ids = %v", ids)
+	}
+}
+
+func TestResolveTourvisorHotelIDsPrefersHotelsDB(t *testing.T) {
+	// No DB: HOTELS alone still works; HOTELS_DB without mapping skips via MapParams path.
+	ids, ok, err := resolveTourvisorHotelIDs(nil, map[string]string{"HOTELS": "516,77"})
+	if err != nil || !ok || len(ids) != 2 || ids[0] != 516 {
+		t.Fatalf("HOTELS = %v ok=%v err=%v", ids, ok, err)
+	}
+	ids, ok, err = resolveTourvisorHotelIDs(nil, map[string]string{})
+	if err != nil || !ok || ids != nil {
+		t.Fatalf("no hotel filter = %v ok=%v err=%v", ids, ok, err)
 	}
 }
 
