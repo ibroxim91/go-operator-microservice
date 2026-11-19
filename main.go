@@ -28,6 +28,7 @@ import (
 // defaultFrontOrigins — prod + local; FRONTEND_ORIGIN (vergul bilan) qo'shimcha originlar.
 var defaultFrontOrigins = []string{
 	"https://simpletravel.uz",
+	"http://simpletravel.uz",
 	"https://www.simpletravel.uz",
 	"https://simple-travel.felixits.uz",
 	"http://localhost:3000",
