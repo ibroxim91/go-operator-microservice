@@ -6,6 +6,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +24,40 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
+
+// defaultFrontOrigins — prod + local; FRONTEND_ORIGIN (vergul bilan) qo'shimcha originlar.
+var defaultFrontOrigins = []string{
+	"https://simpletravel.uz",
+	"https://www.simpletravel.uz",
+	"https://simple-travel.felixits.uz",
+	"http://localhost:3000",
+	"http://127.0.0.1:3000",
+	"http://localhost:3001",
+	"http://127.0.0.1:5500",
+}
+
+func corsAllowOrigins() []string {
+	seen := make(map[string]struct{}, len(defaultFrontOrigins)+4)
+	out := make([]string, 0, len(defaultFrontOrigins)+4)
+	add := func(raw string) {
+		origin := strings.TrimSpace(raw)
+		if origin == "" {
+			return
+		}
+		if _, ok := seen[origin]; ok {
+			return
+		}
+		seen[origin] = struct{}{}
+		out = append(out, origin)
+	}
+	for _, origin := range defaultFrontOrigins {
+		add(origin)
+	}
+	for _, part := range strings.Split(os.Getenv("FRONTEND_ORIGIN"), ",") {
+		add(part)
+	}
+	return out
+}
 
 func main() {
 	e := echo.New()
@@ -75,14 +110,27 @@ func main() {
 	go scheduler.StartTourvisorCalendarScheduler(ctx, conn, cacheClient)
 	go scheduler.StartCurrencyRateScheduler(ctx, samoService.Currency())
 
-	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
-	if frontendOrigin == "" {
-		frontendOrigin = "http://localhost:3000"
-	}
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{frontendOrigin, "http://127.0.0.1:5500"},
-		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
-		AllowHeaders: []string{"Origin", "Content-Type", "Authorization"},
+		AllowOrigins: corsAllowOrigins(),
+		AllowMethods: []string{
+			http.MethodGet,
+			http.MethodHead,
+			http.MethodPost,
+			http.MethodPut,
+			http.MethodPatch,
+			http.MethodDelete,
+			http.MethodOptions,
+		},
+		AllowHeaders: []string{
+			echo.HeaderOrigin,
+			echo.HeaderContentType,
+			echo.HeaderAccept,
+			echo.HeaderAuthorization,
+			"Accept-Language",
+			"X-Requested-With",
+		},
+		ExposeHeaders: []string{echo.HeaderXRequestID},
+		MaxAge:        86400,
 	}))
 	e.Use(middleware.RequestID())
 	handlers.RegisterRoutes(e, ctx, hotelService, samoService, cacheClient)
